@@ -1,5 +1,5 @@
 import { useAuth } from '@/auth/Auth';
-import { useSearchParams } from '@/hooks/useSearchParams';
+import { useNextSearchParams } from '@/hooks/useNextSearchParams';
 import { SHARED_DIRECTORY_ID } from '@jackstenglein/chess-dojo-common/src/database/directory';
 import { MoreHoriz, NavigateNext } from '@mui/icons-material';
 import {
@@ -34,7 +34,7 @@ export const DirectoryBreadcrumbs = ({
     variant?: TypographyOwnProps['variant'];
 }) => {
     const { user } = useAuth();
-    const { updateSearchParams } = useSearchParams();
+    const { updateSearchParams } = useNextSearchParams();
     const currentBreadcrumbs = useBreadcrumbs(owner, id, currentProfile);
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement>();
 
@@ -67,14 +67,8 @@ export const DirectoryBreadcrumbs = ({
             {hiddenBreadcrumbs > 0 && (
                 <>
                     <Tooltip title='Show path'>
-                        <IconButton
-                            size='small'
-                            onClick={(e) => setMenuAnchor(e.currentTarget)}
-                        >
-                            <MoreHoriz
-                                fontSize='inherit'
-                                sx={{ color: 'text.secondary' }}
-                            />
+                        <IconButton size='small' onClick={(e) => setMenuAnchor(e.currentTarget)}>
+                            <MoreHoriz fontSize='inherit' sx={{ color: 'text.secondary' }} />
                         </IconButton>
                     </Tooltip>
 
@@ -102,10 +96,7 @@ export const DirectoryBreadcrumbs = ({
 
             <Breadcrumbs separator={<NavigateNext fontSize='small' />}>
                 {currentBreadcrumbs.slice(hiddenBreadcrumbs).map((b) => (
-                    <Tooltip
-                        key={b.id}
-                        title={b.name.length > MAX_ITEM_LENGTH ? b.name : ''}
-                    >
+                    <Tooltip key={b.id} title={b.name.length > MAX_ITEM_LENGTH ? b.name : ''}>
                         <Typography variant={variant}>
                             <Link
                                 key={b.id}

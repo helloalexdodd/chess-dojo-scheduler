@@ -72,17 +72,12 @@ export const RatingSystemIcon = ({
 }: {
     system: RatingSystem;
     size?: 'small' | 'medium';
-}) => {
+}): JSX.Element => {
     switch (system) {
         case RatingSystem.Lichess:
             return <SiLichess size={size === 'small' ? 15 : 30} />;
         case RatingSystem.Chesscom:
-            return (
-                <SiChessdotcom
-                    size={size === 'small' ? 15 : 30}
-                    style={{ color: '#81b64c' }}
-                />
-            );
+            return <SiChessdotcom size={size === 'small' ? 15 : 30} style={{ color: '#81b64c' }} />;
         case RatingSystem.Fide:
             return <FideIcon size={size} />;
         case RatingSystem.Uscf:
@@ -98,6 +93,8 @@ export const RatingSystemIcon = ({
         case RatingSystem.Knsb:
             return <KnsbIcon size={size} />;
         case RatingSystem.Custom:
+        case RatingSystem.Custom2:
+        case RatingSystem.Custom3:
             return <SlGraph size={size === 'small' ? 15 : 30} />;
     }
 };

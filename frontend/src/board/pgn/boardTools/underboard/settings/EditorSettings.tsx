@@ -1,3 +1,5 @@
+import { UnsavedGameBanner } from '@/components/games/edit/UnsavedGameBanner';
+import useGame from '@/context/useGame';
 import {
     FormGroup,
     FormLabel,
@@ -27,6 +29,7 @@ const EditorSettings = () => {
         ClockFieldFormat.SingleField,
     );
 
+    const { unsaved } = useGame();
     const [warnBeforeDelete, setWarnBeforeDelete] = useLocalStorage<number>(
         WarnBeforeDelete.key,
         WarnBeforeDelete.default,
@@ -34,6 +37,7 @@ const EditorSettings = () => {
 
     return (
         <Stack spacing={3}>
+            {unsaved && <UnsavedGameBanner />}
             <Typography variant='h5'>Editor Settings</Typography>
             <TextField
                 select
@@ -46,12 +50,10 @@ const EditorSettings = () => {
             </TextField>
 
             <FormGroup sx={{ px: 1 }}>
-                <FormLabel>
-                    Warn Before Deleting {warnBeforeDelete} or More Moves
-                </FormLabel>
+                <FormLabel>Warn Before Deleting {warnBeforeDelete} or More Moves</FormLabel>
                 <Slider
                     value={warnBeforeDelete}
-                    onChange={(_, value) => setWarnBeforeDelete(value as number)}
+                    onChange={(_, value) => setWarnBeforeDelete(value)}
                     step={1}
                     min={1}
                     max={30}

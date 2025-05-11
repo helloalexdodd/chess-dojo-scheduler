@@ -2,6 +2,7 @@
 
 import { RequestSnackbar, useRequest } from '@/api/Request';
 import { useAuth } from '@/auth/Auth';
+import { Link } from '@/components/navigation/Link';
 import { ChessDojoIcon } from '@/style/ChessDojoIcon';
 import { AccountCircle, Lock } from '@mui/icons-material';
 import { LoadingButton } from '@mui/lab';
@@ -36,15 +37,10 @@ export const SignInForm = () => {
 
         request.onStart();
         auth.signin(email.trim(), password)
-            .then(() =>
-                router.push(redirectUri ? decodeURIComponent(redirectUri) : '/profile'),
-            )
+            .then(() => router.push(redirectUri ? decodeURIComponent(redirectUri) : '/profile'))
             .catch((err: { name?: string }) => {
                 console.error(err);
-                if (
-                    err.name === 'NotAuthorizedException' ||
-                    err.name === 'UserNotFoundException'
-                ) {
+                if (err.name === 'NotAuthorizedException' || err.name === 'UserNotFoundException') {
                     setErrors({ password: 'Incorrect email or password' });
                     request.onFailure({ message: 'Incorrect email or password' });
                 } else {
@@ -137,15 +133,12 @@ export const SignInForm = () => {
                     Sign In
                 </LoadingButton>
 
-                <Stack
-                    direction='row'
-                    justifyContent='space-between'
-                    sx={{ width: 1, mt: -2 }}
-                >
+                <Stack direction='row' justifyContent='space-between' sx={{ width: 1, mt: -2 }}>
                     <Button
                         data-cy='signup-button'
                         variant='text'
                         sx={{ textTransform: 'none' }}
+                        component={Link}
                         href='/signup'
                     >
                         Sign Up
@@ -154,6 +147,7 @@ export const SignInForm = () => {
                         data-cy='forgot-password-button'
                         variant='text'
                         sx={{ textTransform: 'none', alignSelf: 'end' }}
+                        component={Link}
                         href='/forgot-password'
                     >
                         Reset Password

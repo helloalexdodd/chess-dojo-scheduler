@@ -101,6 +101,8 @@ const (
 	Acf      RatingSystem = "ACF"
 	Knsb     RatingSystem = "KNSB"
 	Custom   RatingSystem = "CUSTOM"
+	Custom2  RatingSystem = "CUSTOM_2"
+	Custom3  RatingSystem = "CUSTOM_3"
 )
 
 var ratingSystems = []RatingSystem{
@@ -114,6 +116,8 @@ var ratingSystems = []RatingSystem{
 	Acf,
 	Knsb,
 	Custom,
+	Custom2,
+	Custom3,
 }
 
 type Rating struct {
@@ -171,6 +175,9 @@ type User struct {
 
 	// The user's Discord username
 	DiscordUsername string `dynamodbav:"discordUsername" json:"discordUsername"`
+
+	// The user's Discord id
+	DiscordId string `dynamodbav:"discordId" json:"discordId"`
 
 	// A search field of the form display:DisplayName_discord:DiscordUsername_[ratingSystem:RatingSystem.Username]
 	// Stored in all lowercase. Each rating's username is only included if its HideUsername field is false.
@@ -237,6 +244,9 @@ type User struct {
 	// Whether to enable light mode on the site
 	EnableLightMode bool `dynamodbav:"enableLightMode" json:"enableLightMode"`
 
+	// Whether to enable zen mode on the site
+	EnableZenMode bool `dynamodbav:"enableZenMode,omitempty" json:"enableZenMode"`
+
 	// The user's preferred timezone on the calendar
 	TimezoneOverride string `dynamodbav:"timezoneOverride" json:"timezoneOverride"`
 
@@ -298,6 +308,24 @@ type User struct {
 
 	// A map from exam id to the user's summary for that exam
 	Exams map[string]UserExamSummary `dynamodbav:"exams" json:"exams"`
+
+	// The IDs of the user's pinned tasks.
+	PinnedTasks []string `dynamodbav:"pinnedTasks,omitempty" json:"pinnedTasks"`
+
+	// The day the user's week starts on. Sunday is 0; Saturday is 6.
+	WeekStart int `dynamodbav:"weekStart,omitempty" json:"weekStart"`
+
+	// The user's work goal settings
+	WorkGoal *WorkGoalSettings `dynamodbav:"workGoal,omitempty" json:"workGoal,omitempty"`
+
+	// The user's history of the work goal. New entries are added only when the work goal is changed.
+	WorkGoalHistory []WorkGoalHistory `dynamodbav:"workGoalHistory,omitempty" json:"workGoalHistory,omitempty"`
+
+	// The user's weekly training plan
+	WeeklyPlan *WeeklyPlan `dynamodbav:"weeklyPlan,omitempty" json:"weeklyPlan,omitempty"`
+
+	// The user's schedule of upcoming classical games
+	GameSchedule []GameScheduleEntry `dynamodbav:"gameSchedule,omitempty" json:"gameSchedule"`
 }
 
 // A summary of a user's performance on a single exam.
@@ -324,6 +352,52 @@ type PaymentInfo struct {
 
 	// The status of the subscription
 	SubscriptionStatus string `dynamodbav:"subscriptionStatus" json:"subscriptionStatus"`
+}
+
+type WorkGoalSettings struct {
+	// A list of the minutes the user wants to work per day of the week.
+	// Sunday is index 0; Saturday is index 6.
+	MinutesPerDay []int `dynamodbav:"minutesPerDay" json:"minutesPerDay"`
+}
+
+type WorkGoalHistory struct {
+	// The date the user set the work goal, in ISO 8601.
+	Date string `dynamodbav:"date" json:"date"`
+
+	// The user's work goal on the given date.
+	WorkGoal WorkGoalSettings `dynamodbav:"workGoal" json:"workGoal"`
+}
+
+type WeeklyPlan struct {
+	// The (exclusive) date the weekly plan ends, in ISO 8601.
+	EndDate string `dynamodbav:"endDate" json:"endDate"`
+
+	// The tasks in the plan, in a list ordered by the index of the day of the week.
+	// Sunday is index 0; Saturday is index 6.
+	Tasks [][]struct {
+		// The id of the task
+		Id string `dynamodbav:"id" json:"id"`
+		// The work goal of the task in minutes
+		Minutes int `dynamodbav:"minutes" json:"minutes"`
+	} `dynamodbav:"tasks" json:"tasks"`
+
+	// The date (in ISO 8601) the user's progress was most recently updated when the weekly plan was
+	// last generated.
+	ProgressUpdatedAt string `dynamodbav:"progressUpdatedAt" json:"progressUpdatedAt"`
+
+	// The ids of the user's pinned tasks (in order) when the weekly plan was last generated.
+	PinnedTasks []string `dynamodbav:"pinnedTasks,omitempty" json:"pinnedTasks,omitempty"`
+
+	// The date (in ISO 8601) of the user's next scheduled game when the weekly plan was last generated.
+	NextGame string `dynamodbav:"nextGame,omitempty" json:"nextGame"`
+}
+
+type GameScheduleEntry struct {
+	// The date the game(s) will be played, in ISO 8601 format.
+	Date string `dynamodbav:"date" json:"date"`
+
+	// The number of games that will be played.
+	Count int `dynamodbav:"count" json:"count"`
 }
 
 // Returns true if the given PaymentInfo indicates an active subscription.
@@ -367,13 +441,12 @@ type DiscordNotificationSettings struct {
 
 	// Whether to disable notifications when a user's meeting is cancelled
 	DisableMeetingCancellation bool `dynamodbav:"disableMeetingCancellation" json:"disableMeetingCancellation"`
-}
 
-func (dns *DiscordNotificationSettings) GetDisableMeetingBooking() bool {
-	if dns == nil {
-		return false
-	}
-	return dns.DisableMeetingBooking
+	// Whether to disable notifications when a user is invited to a calendar event
+	DisableCalendarInvite bool `dynamodbav:"disableCalendarInvite" json:"disableCalendarInvite"`
+
+	// Whether to disable notifications when a round robin starts
+	DisableRoundRobinStart bool `dynamodbav:"disableRoundRobinStart" json:"disableRoundRobinStart"`
 }
 
 func (dns *DiscordNotificationSettings) GetDisableMeetingCancellation() bool {
@@ -390,12 +463,18 @@ type EmailNotificationSettings struct {
 
 	// Whether to disable inactivity warnings
 	DisableInactiveWarning bool `dynamodbav:"disableInactiveWarning" json:"disableInactiveWarning"`
+
+	// Whether to disable notifications when a round robin starts
+	DisableRoundRobinStart bool `dynamodbav:"disableRoundRobinStart" json:"disableRoundRobinStart"`
 }
 
 // The user's settings for in-site notifications.
 type SiteNotificationSettings struct {
 	// Whether to disable notifications on game comments
 	DisableGameComment bool `dynamodbav:"disableGameComment" json:"disableGameComment"`
+
+	// Whether to disable notifications on game comment replies
+	DisableGameCommentReplies bool `dynamodbav:"disableGameCommentReplies" json:"disableGameCommentReplies"`
 
 	// Whether to disable notifications on game reviews
 	DisableGameReview bool `dynamodbav:"disableGameReview" json:"disableGameReview"`
@@ -408,41 +487,12 @@ type SiteNotificationSettings struct {
 
 	// Whether to disable notifications on newsfeed reactions
 	DisableNewsfeedReaction bool `dynamodbav:"disableNewsfeedReaction" json:"disableNewsfeedReaction"`
-}
 
-func (sns *SiteNotificationSettings) GetDisableGameComment() bool {
-	if sns == nil {
-		return false
-	}
-	return sns.DisableGameComment
-}
+	// Whether to disable notifications when a user is invited to a calendar event
+	DisableCalendarInvite bool `dynamodbav:"disableCalendarInvite" json:"disableCalendarInvite"`
 
-func (sns *SiteNotificationSettings) GetDisableGameReview() bool {
-	if sns == nil {
-		return false
-	}
-	return sns.DisableGameReview
-}
-
-func (sns *SiteNotificationSettings) GetDisableNewFollower() bool {
-	if sns == nil {
-		return false
-	}
-	return sns.DisableNewFollower
-}
-
-func (sns *SiteNotificationSettings) GetDisableNewsfeedComment() bool {
-	if sns == nil {
-		return false
-	}
-	return sns.DisableNewsfeedComment
-}
-
-func (sns *SiteNotificationSettings) GetDisableNewsfeedReaction() bool {
-	if sns == nil {
-		return false
-	}
-	return sns.DisableNewsfeedReaction
+	// Whether to hide prompt of changing cohort. If value set, the prompt will not be shown until saved date.
+	HideCohortPromptUntil string `dynamodbav:"hideCohortPromptUntil" json:"hideCohortPromptUntil"`
 }
 
 // UserOpeningModule represents a user's progress on a specific opening module
@@ -531,6 +581,13 @@ func (u *User) getRating(rs RatingSystem) (string, bool) {
 	return rating.Username, rating.HideUsername
 }
 
+func (u *User) IsSubscribed() bool {
+	if u == nil {
+		return false
+	}
+	return u.SubscriptionOverride || u.PaymentInfo.IsSubscribed() || u.SubscriptionStatus == SubscriptionStatus_Subscribed
+}
+
 // UserUpdate contains pointers to fields included in the update of a user record. If a field
 // should not be updated in a particular request, then it is set to nil.
 // Some fields from the User type are removed as they cannot be updated. Other fields
@@ -593,6 +650,9 @@ type UserUpdate struct {
 	// Whether to enable light mode on the site
 	EnableLightMode *bool `dynamodbav:"enableLightMode,omitempty" json:"enableLightMode,omitempty"`
 
+	// Whether to enable zen mode on the site
+	EnableZenMode *bool `dynamodbav:"enableZenMode,omitempty" json:"enableZenMode,omitempty"`
+
 	// The user's preferred timezone on the calendar
 	TimezoneOverride *string `dynamodbav:"timezoneOverride,omitempty" json:"timezoneOverride,omitempty"`
 
@@ -641,6 +701,24 @@ type UserUpdate struct {
 
 	// The user's coach info. This field cannot be manually set by the user.
 	CoachInfo *CoachInfo `dynamodbav:"coachInfo,omitempty" json:"-"`
+
+	// The IDs of the user's pinned tasks.
+	PinnedTasks *[]string `dynamodbav:"pinnedTasks,omitempty" json:"pinnedTasks,omitempty"`
+
+	// The day the user's week starts on. Sunday is 0; Saturday is 6.
+	WeekStart *int `dynamodbav:"weekStart,omitempty" json:"weekStart,omitempty"`
+
+	// The work goal settings of the user.
+	WorkGoal *WorkGoalSettings `dynamodbav:"workGoal,omitempty" json:"workGoal,omitempty"`
+
+	// The user's history of the work goal. New entries are added only when the work goal is changed.
+	WorkGoalHistory *[]WorkGoalHistory `dynamodbav:"workGoalHistory,omitempty" json:"workGoalHistory,omitempty"`
+
+	// The user's weekly training plan.
+	WeeklyPlan *WeeklyPlan `dynamodbav:"weeklyPlan,omitempty" json:"weeklyPlan,omitempty"`
+
+	// The user's schedule of upcoming classical games
+	GameSchedule *[]GameScheduleEntry `dynamodbav:"gameSchedule,omitempty" json:"gameSchedule,omitempty"`
 }
 
 // AutopickCohort sets the UserUpdate's dojoCohort field based on the values of the ratingSystem
@@ -754,6 +832,8 @@ type UserUpdater interface {
 	// RecordFreeTierConversion adds 1 conversion to the user statistics for
 	// the given cohort.
 	RecordFreeTierConversion(cohort DojoCohort) error
+
+	ListTimelineEntries(owner string, startKey string) ([]*TimelineEntry, string, error)
 }
 
 type UserProgressUpdater interface {

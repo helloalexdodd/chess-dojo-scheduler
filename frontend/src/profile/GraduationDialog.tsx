@@ -17,7 +17,7 @@ import { EventType, setUserCohort, trackEvent } from '../analytics/events';
 import { useApi } from '../api/Api';
 import { RequestSnackbar, useRequest } from '../api/Request';
 import { useAuth, useFreeTier } from '../auth/Auth';
-import { RatingSystem, shouldPromptGraduation } from '../database/user';
+import { isCustom, shouldPromptGraduation } from '../database/user';
 import UpsellDialog, { RestrictedAction } from '../upsell/UpsellDialog';
 import GraduationShareDialog from './GraduationShareDialog';
 
@@ -33,8 +33,7 @@ const GraduationDialog = () => {
     const [graduation, setGraduation] = useState<Graduation>();
 
     const shouldGraduate = shouldPromptGraduation(user);
-    const disableGraduation =
-        !shouldGraduate && user?.ratingSystem !== RatingSystem.Custom;
+    const disableGraduation = !shouldGraduate && !isCustom(user?.ratingSystem);
 
     const onOpen = () => {
         if (isFreeTier) {
@@ -57,7 +56,7 @@ const GraduationDialog = () => {
                 });
                 setUserCohort(response.data.userUpdate.dojoCohort);
                 setShowGraduationDialog(false);
-                setShareDialog(true);
+                setShareDialog(!user?.enableZenMode);
             })
             .catch((err) => {
                 request.onFailure(err);
@@ -90,25 +89,23 @@ const GraduationDialog = () => {
             <RequestSnackbar request={request} showSuccess />
             <Dialog
                 open={showGraduationDialog}
-                onClose={
-                    request.isLoading() ? undefined : () => setShowGraduationDialog(false)
-                }
+                onClose={request.isLoading() ? undefined : () => setShowGraduationDialog(false)}
                 fullWidth
             >
                 <DialogTitle>Graduate from {user?.dojoCohort}?</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2}>
                         <DialogContentText>
-                            This will move you to the next cohort and add a belt to your
-                            profile. You will also be added to the list of recent
-                            graduates, and Jesse will review your profile in the next grad
-                            show on Twitch. If you just want to look at tasks from other
-                            cohorts, use the dropdown in the training plan instead.
+                            This will move you to the next cohort and add a badge to your profile.
+                            You will also be added to the list of recent graduates, and Jesse will
+                            review your profile in the next grad show on Twitch. If you just want to
+                            look at tasks from other cohorts, use the dropdown in the training plan
+                            instead.
                         </DialogContentText>
                         <DialogContentText>
-                            Optionally add comments on what was most helpful about the
-                            program, what could be improved, etc. This will be visible to
-                            all other members of the dojo.
+                            Optionally add comments on what was most helpful about the program, what
+                            could be improved, etc. This will be visible to all other members of the
+                            dojo.
                         </DialogContentText>
                         <TextField
                             label='Comments'

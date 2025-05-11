@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const MUI_LICENSE_KEY =
+    'b63a52d106bd196a9b02ba316e6e9673Tz0xMDE1MjMsRT0xNzYyNzMwMDQ1MDAwLFM9cHJvLExNPXN1YnNjcmlwdGlvbixQVj1RMy0yMDI0LEtWPTI=';
+
 export const EnvSchema = z.object({
     auth: z.object({
         region: z.literal('us-east-1'),
@@ -18,16 +21,23 @@ export const EnvSchema = z.object({
     }),
     api: z.object({
         baseUrl: z.string(),
-        roundRobinUrl: z.string(),
     }),
     media: z.object({
         picturesBucket: z.string(),
     }),
     stripe: z.object({
         publishableKey: z.string(),
+        monthlyPriceId: z.string(),
+        yearlyPriceId: z.string(),
     }),
     baseUrl: z.string(),
     isBeta: z.boolean(),
+    metaPixelId: z.string(),
+    discord: z.object({
+        url: z.string(),
+        clientId: z.string(),
+        oauthRedirectUrl: z.string(),
+    }),
 });
 
 export type Config = z.infer<typeof EnvSchema>;
@@ -48,15 +58,22 @@ export function getConfig(): Config {
         },
         api: {
             baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
-            roundRobinUrl: process.env.NEXT_PUBLIC_ROUND_ROBIN_API_ENDPOINT,
         },
         media: {
             picturesBucket: process.env.NEXT_PUBLIC_MEDIA_PICTURES_BUCKET,
         },
         stripe: {
             publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+            monthlyPriceId: process.env.NEXT_PUBLIC_STRIPE_MONTHLY_PRICE_ID,
+            yearlyPriceId: process.env.NEXT_PUBLIC_STRIPE_YEARLY_PRICE_ID,
         },
         baseUrl: process.env.NEXT_PUBLIC_BASE_URL,
         isBeta: process.env.NEXT_PUBLIC_IS_BETA === 'true',
+        metaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID,
+        discord: {
+            url: process.env.NEXT_PUBLIC_DISCORD_URL,
+            clientId: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
+            oauthRedirectUrl: process.env.NEXT_PUBLIC_DISCORD_OAUTH_REDIRECT_URL,
+        },
     });
 }

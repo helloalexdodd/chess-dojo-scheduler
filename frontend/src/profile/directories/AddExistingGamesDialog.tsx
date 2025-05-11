@@ -15,11 +15,7 @@ import {
     DialogContentText,
     DialogTitle,
 } from '@mui/material';
-import {
-    GridPaginationModel,
-    GridRowSelectionModel,
-    useGridApiRef,
-} from '@mui/x-data-grid-pro';
+import { GridPaginationModel, GridRowSelectionModel, useGridApiRef } from '@mui/x-data-grid-pro';
 import { useCallback, useState } from 'react';
 import { useDirectoryCache } from './DirectoryCache';
 
@@ -32,7 +28,10 @@ export const AddExistingGamesDialog = ({
 }) => {
     const api = useApi();
     const { user } = useRequiredAuth();
-    const [selectedRows, setSelectedRows] = useState<GridRowSelectionModel>([]);
+    const [selectedRows, setSelectedRows] = useState<GridRowSelectionModel>({
+        type: 'include',
+        ids: new Set(),
+    });
     const addRequest = useRequest();
     const gridApiRef = useGridApiRef();
     const cache = useDirectoryCache();
@@ -58,14 +57,14 @@ export const AddExistingGamesDialog = ({
     };
 
     const onAdd = () => {
-        if (selectedRows.length === 0 || addRequest.isLoading()) {
+        if (selectedRows.ids.size === 0 || addRequest.isLoading()) {
             return;
         }
 
-        const rows = gridApiRef.current.getSelectedRows();
-        if (rows.size !== selectedRows.length) {
+        const rows = gridApiRef.current?.getSelectedRows() ?? new Map();
+        if (rows.size !== selectedRows.ids.size) {
             console.error(
-                `Grid API getSelectedRows has size ${rows.size} but state selectedRows has size ${selectedRows.length}`,
+                `Grid API getSelectedRows has size ${rows.size} but state selectedRows has size ${selectedRows.ids.size}`,
             );
             return;
         }
@@ -77,9 +76,7 @@ export const AddExistingGamesDialog = ({
                 owner: game.owner,
                 ownerDisplayName: game.ownerDisplayName,
                 createdAt:
-                    game.createdAt ||
-                    game.date.replaceAll('.', '-') ||
-                    new Date().toISOString(),
+                    game.createdAt || game.date.replaceAll('.', '-') || new Date().toISOString(),
                 id: game.id,
                 cohort: game.cohort,
                 white: game.headers.White,
@@ -87,6 +84,7 @@ export const AddExistingGamesDialog = ({
                 whiteElo: game.headers.WhiteElo,
                 blackElo: game.headers.BlackElo,
                 result: game.headers.Result,
+                unlisted: game.unlisted ?? false,
             });
         }
 
@@ -117,8 +115,8 @@ export const AddExistingGamesDialog = ({
             <DialogTitle>Add Games to {directory.name}?</DialogTitle>
             <DialogContent>
                 <DialogContentText sx={{ mb: 1 }}>
-                    Click games to select. Use Shift+Click or Cmd/Ctrl+Click to select
-                    multiple games.
+                    Click games to select. Use Shift+Click or Cmd/Ctrl+Click to select multiple
+                    games.
                 </DialogContentText>
 
                 <GameTable
@@ -143,12 +141,12 @@ export const AddExistingGamesDialog = ({
                 </Button>
 
                 <LoadingButton
-                    disabled={selectedRows.length === 0}
+                    disabled={selectedRows.ids.size === 0}
                     loading={addRequest.isLoading()}
                     onClick={onAdd}
                 >
-                    {selectedRows.length
-                        ? `Add ${selectedRows.length} Game${selectedRows.length > 1 ? 's' : ''}`
+                    {selectedRows.ids.size
+                        ? `Add ${selectedRows.ids.size} Game${selectedRows.ids.size > 1 ? 's' : ''}`
                         : 'Add Games'}
                 </LoadingButton>
             </DialogActions>

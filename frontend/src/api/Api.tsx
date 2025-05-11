@@ -1,22 +1,29 @@
 'use client';
 
+import { DiscordAuthRequest } from '@jackstenglein/chess-dojo-common/src/auth/discord';
 import {
     AddDirectoryItemsRequestV2,
     CreateDirectoryRequestV2Client,
+    ExportDirectoryRequest,
     ListBreadcrumbsRequest,
     MoveDirectoryItemsRequestV2,
     RemoveDirectoryItemsRequestV2,
     ShareDirectoryRequest,
     UpdateDirectoryRequestV2,
 } from '@jackstenglein/chess-dojo-common/src/database/directory';
-import {
-    ExamAttempt,
-    ExamType,
-} from '@jackstenglein/chess-dojo-common/src/database/exam';
+import { ExamAttempt, ExamType } from '@jackstenglein/chess-dojo-common/src/database/exam';
 import {
     CreateGameRequest,
+    DeleteGamesRequest,
     UpdateGameRequest,
 } from '@jackstenglein/chess-dojo-common/src/database/game';
+import { FollowPositionRequest } from '@jackstenglein/chess-dojo-common/src/explorer/follower';
+import { PgnMergeRequest } from '@jackstenglein/chess-dojo-common/src/pgn/merge';
+import {
+    RoundRobinRegisterRequest,
+    RoundRobinSubmitGameRequest,
+    RoundRobinWithdrawRequest,
+} from '@jackstenglein/chess-dojo-common/src/roundRobin/api';
 import { DateTime } from 'luxon';
 import { ReactNode, createContext, useContext, useMemo } from 'react';
 import { useAuth } from '../auth/Auth';
@@ -51,8 +58,10 @@ import {
 import {
     DirectoryApiContextType,
     addDirectoryItems,
+    checkDirectoryExport,
     createDirectory,
     deleteDirectories,
+    exportDirectory,
     getDirectory,
     listBreadcrumbs,
     moveDirectoryItems,
@@ -60,11 +69,7 @@ import {
     shareDirectory,
     updateDirectory,
 } from './directoryApi';
-import {
-    EmailApiContextType,
-    SupportTicketRequest,
-    createSupportTicket,
-} from './emailApi';
+import { EmailApiContextType, SupportTicketRequest, createSupportTicket } from './emailApi';
 import {
     EventApiContextType,
     bookEvent,
@@ -76,18 +81,12 @@ import {
     listEvents,
     setEvent,
 } from './eventApi';
-import {
-    ExamApiContextType,
-    getExam,
-    getExamAnswer,
-    listExams,
-    putExamAttempt,
-} from './examApi';
+import { ExamApiContextType, getExam, getExamAnswer, listExams, putExamAttempt } from './examApi';
 import {
     ExplorerApiContextType,
-    FollowPositionRequest,
     followPosition,
     getPosition,
+    listFollowedPositions,
 } from './explorerApi';
 import {
     DeleteCommentRequest,
@@ -96,7 +95,7 @@ import {
     createComment,
     createGame,
     deleteComment,
-    deleteGame,
+    deleteGames,
     featureGame,
     getGame,
     listFeaturedGames,
@@ -106,6 +105,7 @@ import {
     listGamesByPosition,
     listGamesForReview,
     markReviewed,
+    mergePgn,
     requestReview,
     updateComment,
     updateGame,
@@ -143,6 +143,12 @@ import {
     listRequirements,
     setRequirement,
 } from './requirementApi';
+import {
+    RoundRobinApiContextType,
+    registerForRoundRobin,
+    submitRoundRobinGame,
+    withdrawFromRoundRobin,
+} from './roundRobinApi';
 import { ScoreboardApiContextType, getScoreboard } from './scoreboardApi';
 import {
     OpenClassicalPutPairingsRequest,
@@ -169,6 +175,7 @@ import {
 import {
     UserApiContextType,
     checkUserAccess,
+    discordAuth,
     editFollower,
     getFollower,
     getUser,
@@ -204,7 +211,8 @@ export type ApiContextType = UserApiContextType &
     ClubApiContextType &
     ExamApiContextType &
     EmailApiContextType &
-    DirectoryApiContextType;
+    DirectoryApiContextType &
+    RoundRobinApiContextType;
 
 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 const ApiContext = createContext<ApiContextType>(null!);
@@ -233,7 +241,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
             getUserPublic,
             getUserSummaries,
             listUserTimeline: (owner: string, startKey?: string) =>
-                listUserTimeline(idToken, owner, startKey),
+                listUserTimeline(owner, startKey),
             listUsersByCohort: (cohort: string, startKey?: string) =>
                 listUsersByCohort(idToken, cohort, startKey),
             searchUsers,
@@ -284,6 +292,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
                 listFollowers(username, startKey),
             listFollowing: (username: string, startKey?: string) =>
                 listFollowing(username, startKey),
+            discordAuth: (request: DiscordAuthRequest) => discordAuth(idToken, request),
 
             bookEvent: (id: string, startTime?: Date, type?: string) =>
                 bookEvent(idToken, id, startTime, type),
@@ -302,7 +311,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
                 featureGame(idToken, cohort, id, featured),
             updateGame: (cohort: string, id: string, req: Partial<UpdateGameRequest>) =>
                 updateGame(idToken, cohort, id, req),
-            deleteGame: (cohort: string, id: string) => deleteGame(idToken, cohort, id),
+            deleteGames: (request: DeleteGamesRequest) => deleteGames(idToken, request),
             listGamesByCohort: (
                 cohort: string,
                 startKey?: string,
@@ -316,16 +325,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
                 endDate?: string,
                 player?: string,
                 color?: string,
-            ) =>
-                listGamesByOwner(
-                    idToken,
-                    owner,
-                    startKey,
-                    startDate,
-                    endDate,
-                    player,
-                    color,
-                ),
+            ) => listGamesByOwner(idToken, owner, startKey, startDate, endDate, player, color),
             listGamesByOpening: (
                 eco: string,
                 startKey?: string,
@@ -334,33 +334,25 @@ export function ApiProvider({ children }: { children: ReactNode }) {
             ) => listGamesByOpening(idToken, eco, startKey, startDate, endDate),
             listGamesByPosition: (fen: string, mastersOnly: boolean, startKey?: string) =>
                 listGamesByPosition(idToken, fen, mastersOnly, startKey),
-            listFeaturedGames: (startKey?: string) =>
-                listFeaturedGames(idToken, startKey),
-            listGamesForReview: (startKey?: string) =>
-                listGamesForReview(idToken, startKey),
+            listFeaturedGames: (startKey?: string) => listFeaturedGames(idToken, startKey),
+            listGamesForReview: (startKey?: string) => listGamesForReview(idToken, startKey),
             createComment: (
                 cohort: string,
                 id: string,
                 comment: PositionComment,
                 existingComments: boolean,
             ) => createComment(idToken, cohort, id, comment, existingComments),
-            updateComment: (update: UpdateCommentRequest) =>
-                updateComment(idToken, update),
-            deleteComment: (request: DeleteCommentRequest) =>
-                deleteComment(idToken, request),
+            updateComment: (update: UpdateCommentRequest) => updateComment(idToken, update),
+            deleteComment: (request: DeleteCommentRequest) => deleteComment(idToken, request),
             requestReview: (cohort: string, id: string, reviewType: GameReviewType) =>
                 requestReview(idToken, cohort, id, reviewType),
-            markReviewed: (cohort: string, id: string) =>
-                markReviewed(idToken, cohort, id),
+            markReviewed: (cohort: string, id: string) => markReviewed(idToken, cohort, id),
+            mergePgn: (request: PgnMergeRequest) => mergePgn(idToken, request),
 
             getRequirement: (id: string) => getRequirement(idToken, id),
-            listRequirements: (
-                cohort: string,
-                scoreboardOnly: boolean,
-                startKey?: string,
-            ) => listRequirements(idToken, cohort, scoreboardOnly, startKey),
-            setRequirement: (requirement: Requirement) =>
-                setRequirement(idToken, requirement),
+            listRequirements: (cohort: string, scoreboardOnly: boolean, startKey?: string) =>
+                listRequirements(idToken, cohort, scoreboardOnly, startKey),
+            setRequirement: (requirement: Requirement) => setRequirement(idToken, requirement),
 
             listGraduationsByCohort: (cohort: string, startKey?: string) =>
                 listGraduationsByCohort(cohort, startKey),
@@ -370,8 +362,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
 
             getCourse: (type: string, id: string, checkoutId?: string) =>
                 getCourse(idToken, type, id, checkoutId),
-            listCourses: (type: string, startKey?: string) =>
-                listCourses(idToken, type, startKey),
+            listCourses: (type: string, startKey?: string) => listCourses(idToken, type, startKey),
             listAllCourses: (startKey?: string) => listAllCourses(startKey),
             purchaseCourse: (
                 type: string,
@@ -396,8 +387,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
                 submitResultsForOpenClassical(idToken, req),
             putOpenClassicalPairings: (req: OpenClassicalPutPairingsRequest) =>
                 putOpenClassicalPairings(idToken, req),
-            listPreviousOpenClassicals: (startKey?: string) =>
-                listPreviousOpenClassicals(startKey),
+            listPreviousOpenClassicals: (startKey?: string) => listPreviousOpenClassicals(startKey),
             adminGetRegistrations: (region: string, section: string) =>
                 adminGetRegistrations(idToken, region, section),
             adminBanPlayer: (username: string, region: string, section: string) =>
@@ -411,28 +401,22 @@ export function ApiProvider({ children }: { children: ReactNode }) {
             adminCompleteTournament: (nextStartDate: string) =>
                 adminCompleteTournament(idToken, nextStartDate),
 
-            listNotifications: (startKey?: string) =>
-                listNotifications(idToken, startKey),
+            listNotifications: (startKey?: string) => listNotifications(idToken, startKey),
             deleteNotification: (id: string) => deleteNotification(idToken, id),
 
             getNewsfeedItem: (owner: string, id: string) => getNewsfeedItem(owner, id),
-            listNewsfeed: (
-                newsfeedIds: string[],
-                skipLastFetch?: boolean,
-                startKey?: string,
-            ) => listNewsfeed(idToken, newsfeedIds, skipLastFetch, startKey),
-            createNewsfeedComment: (
-                props: { owner: string; id: string },
-                content: string,
-            ) => createNewsfeedComment(idToken, props, content),
+            listNewsfeed: (newsfeedIds: string[], skipLastFetch?: boolean, startKey?: string) =>
+                listNewsfeed(idToken, newsfeedIds, skipLastFetch, startKey),
+            createNewsfeedComment: (props: { owner: string; id: string }, content: string) =>
+                createNewsfeedComment(idToken, props, content),
             setNewsfeedReaction: (owner: string, id: string, types: string[]) =>
                 setNewsfeedReaction(idToken, owner, id, types),
 
             getScoreboard: (type: string) => getScoreboard(idToken, type),
 
             getPosition: (fen: string) => getPosition(idToken, fen),
-            followPosition: (request: FollowPositionRequest) =>
-                followPosition(idToken, request),
+            followPosition: (request: FollowPositionRequest) => followPosition(idToken, request),
+            listFollowedPositions: () => listFollowedPositions(idToken),
 
             subscriptionCheckout: (request: SubscriptionCheckoutRequest) =>
                 subscriptionCheckout(idToken, request),
@@ -442,24 +426,19 @@ export function ApiProvider({ children }: { children: ReactNode }) {
             paymentAccountLogin: () => paymentAccountLogin(idToken),
 
             createClub: (club: Partial<Club>) => createClub(idToken, club),
-            updateClub: (id: string, data: Partial<Club>) =>
-                updateClub(idToken, id, data),
+            updateClub: (id: string, data: Partial<Club>) => updateClub(idToken, id, data),
             listClubs: (startKey?: string) => listClubs(startKey),
             getClub: (id: string, scoreboard?: boolean) => getClub(id, scoreboard),
             batchGetClubs: (ids: string[]) => batchGetClubs(ids),
             joinClub: (id: string) => joinClub(idToken, id),
             requestToJoinClub: (id: string, notes: string) =>
                 requestToJoinClub(idToken, id, notes, auth.user),
-            processJoinRequest: (
-                clubId: string,
-                username: string,
-                status: ClubJoinRequestStatus,
-            ) => processJoinRequest(idToken, clubId, username, status),
+            processJoinRequest: (clubId: string, username: string, status: ClubJoinRequestStatus) =>
+                processJoinRequest(idToken, clubId, username, status),
             leaveClub: (clubId: string) => leaveClub(idToken, clubId),
 
             getExam: (type: ExamType, id: string) => getExam(idToken, type, id),
-            listExams: (type: ExamType, startKey?: string) =>
-                listExams(idToken, type, startKey),
+            listExams: (type: ExamType, startKey?: string) => listExams(idToken, type, startKey),
             putExamAttempt: (
                 examType: ExamType,
                 examId: string,
@@ -473,14 +452,12 @@ export function ApiProvider({ children }: { children: ReactNode }) {
                 createSupportTicket(idToken, request),
 
             getDirectory: (owner: string, id: string) => getDirectory(idToken, owner, id),
-            listBreadcrumbs: (request: ListBreadcrumbsRequest) =>
-                listBreadcrumbs(idToken, request),
+            listBreadcrumbs: (request: ListBreadcrumbsRequest) => listBreadcrumbs(idToken, request),
             createDirectory: (request: CreateDirectoryRequestV2Client) =>
                 createDirectory(idToken, request),
             updateDirectory: (request: UpdateDirectoryRequestV2) =>
                 updateDirectory(idToken, request),
-            shareDirectory: (request: ShareDirectoryRequest) =>
-                shareDirectory(idToken, request),
+            shareDirectory: (request: ShareDirectoryRequest) => shareDirectory(idToken, request),
             deleteDirectories: (owner: string, ids: string[]) =>
                 deleteDirectories(idToken, owner, ids),
             addDirectoryItems: (request: AddDirectoryItemsRequestV2) =>
@@ -489,6 +466,15 @@ export function ApiProvider({ children }: { children: ReactNode }) {
                 removeDirectoryItem(idToken, request),
             moveDirectoryItems: (request: MoveDirectoryItemsRequestV2) =>
                 moveDirectoryItems(idToken, request),
+            exportDirectory: (request: ExportDirectoryRequest) => exportDirectory(idToken, request),
+            checkDirectoryExport: (id: string) => checkDirectoryExport(idToken, id),
+
+            registerForRoundRobin: (request: RoundRobinRegisterRequest) =>
+                registerForRoundRobin(idToken, request),
+            withdrawFromRoundRobin: (request: RoundRobinWithdrawRequest) =>
+                withdrawFromRoundRobin(idToken, request),
+            submitRoundRobinGame: (request: RoundRobinSubmitGameRequest) =>
+                submitRoundRobinGame(idToken, request),
         };
     }, [idToken, auth.user, auth.updateUser]);
 

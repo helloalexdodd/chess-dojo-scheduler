@@ -1,3 +1,4 @@
+import { LoadingButton } from '@mui/lab';
 import {
     Button,
     Checkbox,
@@ -8,24 +9,13 @@ import {
     Typography,
 } from '@mui/material';
 import React, { useState } from 'react';
-
-import { LoadingButton } from '@mui/lab';
 import { useApi } from '../../api/Api';
 import { RequestSnackbar, useRequest } from '../../api/Request';
-import {
-    RatingSystem,
-    User,
-    getRatingUsername,
-    hideRatingUsername,
-} from '../../database/user';
-import {
-    getHelperText,
-    getUsernameLabel,
-    getUsernameType,
-} from './PreferredRatingSystemForm';
+import { RatingSystem, User, getRatingUsername, hideRatingUsername } from '../../database/user';
+import { getHelperText, getUsernameLabel, getUsernameType } from './PreferredRatingSystemForm';
 import { ProfileCreatorFormProps } from './ProfileCreatorPage';
 
-const { Custom, ...RatingSystems } = RatingSystem;
+const { Custom, Custom2, Custom3, ...RatingSystems } = RatingSystem;
 
 function getUpdate(
     user: User,
@@ -102,13 +92,13 @@ const ExtraRatingSystemsForm: React.FC<ProfileCreatorFormProps> = ({
     return (
         <Stack spacing={4}>
             <Typography>
-                You have been placed in the <strong>{user.dojoCohort}</strong> cohort. You
-                can change this later if the program is too hard or too easy.
+                You have been placed in the <strong>{user.dojoCohort}</strong> cohort. You can
+                change this later if the program is too hard or too easy.
             </Typography>
 
             <Typography>
-                Add any additional rating systems you would like to track below. These are
-                optional and will not affect your cohort.
+                Add any additional rating systems you would like to track below. These are optional
+                and will not affect your cohort.
             </Typography>
 
             <Grid container columnSpacing={2} alignItems='center'>
@@ -118,19 +108,17 @@ const ExtraRatingSystemsForm: React.FC<ProfileCreatorFormProps> = ({
                     }
                     return (
                         <React.Fragment key={rs}>
-                            <Grid item xs={12} sm={6} mb={4}>
+                            <Grid size={{ xs: 12, sm: 6 }} mb={4}>
                                 <TextField
                                     label={getUsernameLabel(rs)}
                                     value={usernames[rs]}
-                                    onChange={(event) =>
-                                        setUsername(rs, event.target.value)
-                                    }
+                                    onChange={(event) => setUsername(rs, event.target.value)}
                                     helperText={getHelperText(rs)}
                                     fullWidth
                                 />
                             </Grid>
 
-                            <Grid item xs={12} sm={6} mb={4}>
+                            <Grid size={{ xs: 12, sm: 6 }} mb={4}>
                                 <FormControlLabel
                                     control={
                                         <Checkbox
@@ -140,9 +128,7 @@ const ExtraRatingSystemsForm: React.FC<ProfileCreatorFormProps> = ({
                                             }
                                         />
                                     }
-                                    label={`Hide ${getUsernameType(
-                                        rs,
-                                    )} from other Dojo members`}
+                                    label={`Hide ${getUsernameType(rs)} from other Dojo members`}
                                     sx={{ justifyContent: 'end' }}
                                 />
                             </Grid>
@@ -152,11 +138,7 @@ const ExtraRatingSystemsForm: React.FC<ProfileCreatorFormProps> = ({
             </Grid>
 
             <Stack direction='row' justifyContent='space-between'>
-                <Button
-                    disabled={request.isLoading()}
-                    onClick={onPrevStep}
-                    variant='contained'
-                >
+                <Button disabled={request.isLoading()} onClick={onPrevStep} variant='contained'>
                     Back
                 </Button>
 

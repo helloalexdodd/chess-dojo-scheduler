@@ -1,4 +1,5 @@
 import { Event, EventType } from '@jackstenglein/chess';
+import { PersonSearch } from '@mui/icons-material';
 import { TabContext } from '@mui/lab';
 import { Box, CardContent, Tab, Tabs } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
@@ -11,7 +12,9 @@ import { KingIcon, RookIcon } from '../../../style/ChessIcons';
 import { useChess } from '../PgnBoard';
 import Database from './Database';
 import Header from './Header';
+import { PlayerTab } from './player/PlayerTab';
 import { Tablebase } from './Tablebase';
+import { usePositionGames } from './usePositionGames';
 
 const startingPositionFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -23,6 +26,7 @@ export enum ExplorerDatabaseType {
     Dojo = 'dojo',
     Masters = 'masters',
     Lichess = 'lichess',
+    Player = 'player',
     Tablebase = 'tablebase',
 }
 
@@ -34,6 +38,13 @@ const Explorer = () => {
     const [minCohort, setMinCohort] = useState('');
     const [maxCohort, setMaxCohort] = useState('');
     const [timeControls, setTimeControls] = useState(defaultTimeControls);
+    const pagination = usePositionGames({
+        fen,
+        type: tab,
+        minCohort,
+        maxCohort,
+        timeControls,
+    });
 
     useEffect(() => {
         if (chess) {
@@ -75,8 +86,7 @@ const Explorer = () => {
     const onSetTimeControls = (v: string[]) => {
         setTimeControls(
             v.sort(
-                (lhs, rhs) =>
-                    defaultTimeControls.indexOf(lhs) - defaultTimeControls.indexOf(rhs),
+                (lhs, rhs) => defaultTimeControls.indexOf(lhs) - defaultTimeControls.indexOf(rhs),
             ),
         );
     };
@@ -133,6 +143,14 @@ const Explorer = () => {
                             data-cy='explorer-tab-button-lichess'
                         />
                         <Tab
+                            label='Player'
+                            value={ExplorerDatabaseType.Player}
+                            icon={<PersonSearch />}
+                            iconPosition='start'
+                            sx={{ minHeight: '48px' }}
+                            data-cy='explorer-tab-button-player'
+                        />
+                        <Tab
                             label='Tablebase'
                             value={ExplorerDatabaseType.Tablebase}
                             icon={<RookIcon sx={{ fontSize: '1rem' }} />}
@@ -145,18 +163,21 @@ const Explorer = () => {
 
                 {tab === ExplorerDatabaseType.Tablebase ? (
                     <Tablebase fen={fen} position={tablebase} request={request} />
+                ) : tab === ExplorerDatabaseType.Player ? (
+                    <PlayerTab fen={fen} />
                 ) : (
                     <Database
                         type={tab}
                         fen={fen}
                         position={selectedPosition}
-                        request={request}
+                        isLoading={request.isLoading() || !request.isSent()}
                         minCohort={minCohort}
                         maxCohort={maxCohort}
                         setMinCohort={setMinCohort}
                         setMaxCohort={setMaxCohort}
                         timeControls={timeControls}
                         setTimeControls={onSetTimeControls}
+                        pagination={pagination}
                     />
                 )}
             </TabContext>

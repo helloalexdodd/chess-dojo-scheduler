@@ -1,8 +1,10 @@
 import NotFoundPage from '@/NotFoundPage';
 import { useApi } from '@/api/Api';
 import { useRequest } from '@/api/Request';
+import { NavigationMenu } from '@/components/directories/navigation/NavigationMenu';
 import { useDataGridContextMenu } from '@/hooks/useDataGridContextMenu';
-import { useSearchParams } from '@/hooks/useSearchParams';
+import { useNextSearchParams } from '@/hooks/useNextSearchParams';
+import { useRouter } from '@/hooks/useRouter';
 import LoadingPage from '@/loading/LoadingPage';
 import {
     compareRoles,
@@ -25,7 +27,7 @@ import {
     GridToolbarDensitySelector,
     GridToolbarFilterButton,
 } from '@mui/x-data-grid-pro';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useLocalStorage } from 'usehooks-ts';
 import { AddButton } from './AddButton';
 import { BulkItemEditor } from './BulkItemEditor';
@@ -33,7 +35,6 @@ import { ContextMenu } from './ContextMenu';
 import { DirectoryBreadcrumbs } from './DirectoryBreadcrumbs';
 import { useDirectory } from './DirectoryCache';
 import { adminColumns, publicColumns } from './DirectoryGridColumns';
-import { NavigationMenu } from './navigation/NavigationMenu';
 import { ShareButton } from './share/ShareButton';
 
 const pageSizeOptions = [10, 25, 50, 100] as const;
@@ -67,18 +68,20 @@ export const DirectoriesSection = ({
     sx,
 }: DirectoriesSectionProps) => {
     const api = useApi();
-    const { searchParams, updateSearchParams } = useSearchParams({ directory: 'home' });
+    const { searchParams, updateSearchParams } = useNextSearchParams({
+        directory: 'home',
+    });
+    const router = useRouter();
 
-    const [columnVisibility, setColumnVisibility] =
-        useLocalStorage<GridColumnVisibilityModel>(
-            `/DirectoryTable/${namespace}/visibility`,
-            {
-                type: true,
-                name: true,
-                result: true,
-                ...(defaultColumnVisibility ?? {}),
-            },
-        );
+    const [columnVisibility, setColumnVisibility] = useLocalStorage<GridColumnVisibilityModel>(
+        `/DirectoryTable/${namespace}/visibility`,
+        {
+            type: true,
+            name: true,
+            result: true,
+            ...(defaultColumnVisibility ?? {}),
+        },
+    );
     const [density, setDensity] = useLocalStorage<GridDensity>(
         `/DirectoryTable/density`,
         'standard',
@@ -87,7 +90,10 @@ export const DirectoriesSection = ({
     const directoryId = searchParams.get('directory') || 'home';
     const directoryOwner = searchParams.get('directoryOwner') || defaultDirectoryOwner;
 
-    const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>([]);
+    const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({
+        type: 'include',
+        ids: new Set([]),
+    });
     const contextMenu = useDataGridContextMenu(rowSelectionModel);
 
     const { directory, accessRole, request, putDirectory } = useDirectory(
@@ -130,7 +136,8 @@ export const DirectoriesSection = ({
     if (!directory) {
         return <NotFoundPage />;
     }
-    const onClickRow = (params: GridRowParams<DirectoryItem>) => {
+
+    const onClickRow = (params: GridRowParams<DirectoryItem>, event: React.MouseEvent) => {
         if (params.row.type === DirectoryItemTypes.DIRECTORY) {
             updateSearchParams({
                 directory: params.row.id,
@@ -140,10 +147,15 @@ export const DirectoriesSection = ({
                         : directory.owner,
             });
         } else {
-            window.location.href = `/games/${params.row.metadata.cohort.replaceAll('+', '%2B')}/${params.row.metadata.id.replaceAll(
+            const url = `/games/${params.row.metadata.cohort.replaceAll('+', '%2B')}/${params.row.metadata.id.replaceAll(
                 '?',
                 '%3F',
             )}?directory=${directory.id}&directoryOwner=${directory.owner}`;
+            if (event.shiftKey) {
+                window.open(url, '_blank');
+            } else {
+                router.push(url);
+            }
         }
     };
 
@@ -167,8 +179,7 @@ export const DirectoriesSection = ({
     };
 
     const isEditor =
-        compareRoles(DirectoryAccessRole.Editor, accessRole) &&
-        directoryId !== SHARED_DIRECTORY_ID;
+        compareRoles(DirectoryAccessRole.Editor, accessRole) && directoryId !== SHARED_DIRECTORY_ID;
     const isAdmin = compareRoles(DirectoryAccessRole.Admin, accessRole);
 
     return (
@@ -180,7 +191,6 @@ export const DirectoriesSection = ({
                 enabled={enableNavigationMenu}
                 defaultValue={defaultNavigationMenuOpen}
             />
-
             <Stack spacing={2} alignItems='start' flexGrow={1}>
                 <DirectoryBreadcrumbs
                     owner={directoryOwner}
@@ -189,27 +199,22 @@ export const DirectoriesSection = ({
                 />
 
                 {isEditor && (
-                    <Stack
-                        direction='row'
-                        alignItems='center'
-                        gap={2}
-                        width={1}
-                        flexWrap='wrap'
-                    >
+                    <Stack direction='row' alignItems='center' gap={2} width={1} flexWrap='wrap'>
                         <AddButton directory={directory} accessRole={accessRole} />
                         <ShareButton directory={directory} accessRole={accessRole} />
 
                         <BulkItemEditor
                             directory={directory}
-                            itemIds={rowSelectionModel as string[]}
-                            onClear={() => setRowSelectionModel([])}
+                            itemIds={[...rowSelectionModel.ids] as string[]}
+                            onClear={() =>
+                                setRowSelectionModel({ type: 'include', ids: new Set() })
+                            }
                         />
                     </Stack>
                 )}
 
                 <DataGridPro
                     autoHeight
-                    data-cy='directories-data-grid'
                     rows={rows}
                     columns={isAdmin ? adminColumns : publicColumns}
                     columnVisibilityModel={columnVisibility}
@@ -222,6 +227,7 @@ export const DirectoriesSection = ({
                         toolbar: CustomGridToolbar,
                     }}
                     slotProps={{
+                        root: { 'data-cy': 'directories-data-grid' },
                         row: isEditor
                             ? {
                                   onContextMenu: contextMenu.open,
@@ -243,6 +249,7 @@ export const DirectoriesSection = ({
                     pagination
                     pageSizeOptions={pageSizeOptions}
                     sx={{ width: 1, ...sx }}
+                    showToolbar
                 />
 
                 <ContextMenu

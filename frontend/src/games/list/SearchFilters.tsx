@@ -1,5 +1,14 @@
+import { EventType, trackEvent } from '@/analytics/events';
+import { useApi } from '@/api/Api';
+import { useAuth, useFreeTier } from '@/auth/Auth';
+import { Link } from '@/components/navigation/Link';
 import { MastersCohort } from '@/database/game';
+import { RequirementCategory } from '@/database/requirement';
+import { dojoCohorts } from '@/database/user';
+import { useNextSearchParams } from '@/hooks/useNextSearchParams';
 import { SearchFunc } from '@/hooks/usePagination';
+import CohortIcon from '@/scoreboard/CohortIcon';
+import Icon from '@/style/Icon';
 import { Folder } from '@mui/icons-material';
 import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
 import { LoadingButton } from '@mui/lab';
@@ -8,7 +17,7 @@ import {
     AccordionSummaryProps,
     Button,
     FormControl,
-    Grid2,
+    Grid,
     InputLabel,
     MenuItem,
     Accordion as MuiAccordion,
@@ -23,18 +32,6 @@ import { styled } from '@mui/material/styles';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { DateTime } from 'luxon';
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-    Link as RouterLink,
-    URLSearchParamsInit,
-    useSearchParams,
-} from 'react-router-dom';
-import { EventType, trackEvent } from '../../analytics/events';
-import { useApi } from '../../api/Api';
-import { useFreeTier, useRequiredAuth } from '../../auth/Auth';
-import { RequirementCategory } from '../../database/requirement';
-import { dojoCohorts } from '../../database/user';
-import CohortIcon from '../../scoreboard/CohortIcon';
-import Icon from '../../style/Icon';
 
 const Accordion = styled((props: AccordionProps) => (
     <MuiAccordion disableGutters elevation={0} square {...props} />
@@ -119,8 +116,8 @@ export const SearchByCohort: React.FC<SearchByCohortProps> = ({
                 </Select>
             </FormControl>
 
-            <Grid2 container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+            <Grid container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='Start Date'
                         value={startDate}
@@ -131,9 +128,9 @@ export const SearchByCohort: React.FC<SearchByCohortProps> = ({
                             textField: { id: 'cohort-start-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
+                </Grid>
 
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='End Date'
                         value={endDate}
@@ -144,8 +141,8 @@ export const SearchByCohort: React.FC<SearchByCohortProps> = ({
                             textField: { id: 'cohort-end-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
-            </Grid2>
+                </Grid>
+            </Grid>
 
             <LoadingButton
                 data-cy='cohort-search-button'
@@ -171,12 +168,11 @@ const SearchByOwner: React.FC<BaseFilterProps> = ({
     return (
         <Stack data-cy='search-by-owner' spacing={2}>
             <Typography data-cy='owner-search-description' gutterBottom>
-                Find games that you have uploaded to the Dojo Database. Note that games
-                uploaded previously through Dojo 1.0's Google Form submission will not be
-                matched.
+                Find games that you have uploaded to the Dojo Database. Note that games uploaded
+                previously through Dojo 1.0's Google Form submission will not be matched.
             </Typography>
-            <Grid2 container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+            <Grid container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='Start Date'
                         value={startDate}
@@ -187,9 +183,9 @@ const SearchByOwner: React.FC<BaseFilterProps> = ({
                             textField: { id: 'owner-start-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
+                </Grid>
 
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='End Date'
                         value={endDate}
@@ -200,8 +196,8 @@ const SearchByOwner: React.FC<BaseFilterProps> = ({
                             textField: { id: 'owner-end-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
-            </Grid2>
+                </Grid>
+            </Grid>
 
             <LoadingButton
                 data-cy='owner-search-button'
@@ -255,8 +251,8 @@ const SearchByPlayer: React.FC<SearchByPlayerProps> = ({
     return (
         <Stack data-cy='search-by-player' spacing={2}>
             <Typography gutterBottom>
-                Find games based on player name. Note this is the name as it was recorded
-                in the PGN file.
+                Find games based on player name. Note this is the name as it was recorded in the PGN
+                file.
             </Typography>
             <TextField
                 data-cy='player-name'
@@ -278,8 +274,8 @@ const SearchByPlayer: React.FC<SearchByPlayerProps> = ({
                 <MenuItem value='black'>Black</MenuItem>
             </Select>
 
-            <Grid2 container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+            <Grid container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='Start Date'
                         value={startDate}
@@ -290,9 +286,9 @@ const SearchByPlayer: React.FC<SearchByPlayerProps> = ({
                             textField: { id: 'player-start-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
+                </Grid>
 
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='End Date'
                         value={endDate}
@@ -303,8 +299,8 @@ const SearchByPlayer: React.FC<SearchByPlayerProps> = ({
                             textField: { id: 'player-end-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
-            </Grid2>
+                </Grid>
+            </Grid>
 
             <LoadingButton
                 data-cy='player-search-button'
@@ -363,9 +359,7 @@ const SearchByOpening: React.FC<SearchByOpeningProps> = ({
     return (
         <Stack data-cy='search-by-opening' spacing={2}>
             <FormControl>
-                <Typography gutterBottom>
-                    Find games based on opening ECO Codes
-                </Typography>
+                <Typography gutterBottom>Find games based on opening ECO Codes</Typography>
                 <TextField
                     data-cy='opening-eco'
                     value={eco}
@@ -376,8 +370,8 @@ const SearchByOpening: React.FC<SearchByOpeningProps> = ({
                 />
             </FormControl>
 
-            <Grid2 container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+            <Grid container rowGap={1} columnGap={{ md: 0, lg: 1 }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='Start Date'
                         value={startDate}
@@ -388,9 +382,9 @@ const SearchByOpening: React.FC<SearchByOpeningProps> = ({
                             textField: { id: 'opening-start-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
+                </Grid>
 
-                <Grid2 size={{ xs: 12, lg: 'grow' }}>
+                <Grid size={{ xs: 12, lg: 'grow' }}>
                     <DatePicker
                         label='End Date'
                         value={endDate}
@@ -401,8 +395,8 @@ const SearchByOpening: React.FC<SearchByOpeningProps> = ({
                             textField: { id: 'opening-end-date', fullWidth: true },
                         }}
                     />
-                </Grid2>
-            </Grid2>
+                </Grid>
+            </Grid>
 
             <LoadingButton
                 data-cy='opening-search-button'
@@ -479,8 +473,8 @@ const SearchByPosition: React.FC<SearchByPositionProps> = ({
                 </Typography>
             ) : (
                 <LoadingButton
-                    component={RouterLink}
-                    to={`/games/explorer?fen=${fen}`}
+                    href={`/games/analysis?fen=${fen}`}
+                    component={Link}
                     disabled={isLoading}
                     variant='outlined'
                     startIcon={<Icon name='explore' color='primary' />}
@@ -521,11 +515,11 @@ interface SearchFiltersProps {
 }
 
 const SearchFilters: React.FC<SearchFiltersProps> = ({ isLoading, onSearch }) => {
-    const { user } = useRequiredAuth();
+    const { user } = useAuth();
     const api = useApi();
 
-    const [searchParams, setSearchParams] = useSearchParams({
-        cohort: user.dojoCohort,
+    const { searchParams, setSearchParams } = useNextSearchParams({
+        cohort: user?.dojoCohort || '',
         player: '',
         color: 'either',
         eco: '',
@@ -533,9 +527,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ isLoading, onSearch }) =>
         type: SearchType.Cohort,
     });
 
-    const [expanded, setExpanded] = useState<string | false>(
-        searchParams.get('type') || '',
-    );
+    const [expanded, setExpanded] = useState<string | false>(searchParams.get('type') || '');
     const onChangePanel =
         (panel: string) => (_event: React.SyntheticEvent, newExpanded: boolean) => {
             setExpanded(newExpanded ? panel : false);
@@ -562,7 +554,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ isLoading, onSearch }) =>
 
     // Submitted variables that should be searched on
     const type = searchParams.get('type') || SearchType.Cohort;
-    const cohort = searchParams.get('cohort') || user.dojoCohort;
+    const cohort = searchParams.get('cohort') || user?.dojoCohort || '';
     const player = searchParams.get('player') || '';
     const color = searchParams.get('color') || 'either';
     const eco = searchParams.get('eco') || '';
@@ -586,33 +578,24 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ isLoading, onSearch }) =>
 
     // Functions that actually perform the search
     const searchByCohort = useCallback(
-        (startKey: string) =>
-            api.listGamesByCohort(cohort, startKey, startDateStr, endDateStr),
+        (startKey: string) => api.listGamesByCohort(cohort, startKey, startDateStr, endDateStr),
         [cohort, api, startDateStr, endDateStr],
     );
 
     const searchByPlayer = useCallback(
         (startKey: string) =>
-            api.listGamesByOwner(
-                undefined,
-                startKey,
-                startDateStr,
-                endDateStr,
-                player,
-                color,
-            ),
+            api.listGamesByOwner(undefined, startKey, startDateStr, endDateStr, player, color),
         [api, startDateStr, endDateStr, player, color],
     );
 
     const searchByOwner = useCallback(
         (startKey: string) =>
-            api.listGamesByOwner(user.username, startKey, startDateStr, endDateStr),
-        [api, user.username, startDateStr, endDateStr],
+            api.listGamesByOwner(user?.username, startKey, startDateStr, endDateStr),
+        [api, user?.username, startDateStr, endDateStr],
     );
 
     const searchByOpening = useCallback(
-        (startKey: string) =>
-            api.listGamesByOpening(eco, startKey, startDateStr, endDateStr),
+        (startKey: string) => api.listGamesByOpening(eco, startKey, startDateStr, endDateStr),
         [api, eco, startDateStr, endDateStr],
     );
 
@@ -656,7 +639,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ isLoading, onSearch }) =>
     ]);
 
     // Functions that change the search params
-    const onSetSearchParams = (params: URLSearchParamsInit) => {
+    const onSetSearchParams = (params: Record<string, string>) => {
         trackEvent(EventType.SearchGames, params);
         setSearchParams(params);
     };

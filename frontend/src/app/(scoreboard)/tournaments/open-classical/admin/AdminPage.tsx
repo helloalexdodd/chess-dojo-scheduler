@@ -4,10 +4,10 @@ import { useApi } from '@/api/Api';
 import { RequestSnackbar, useRequest } from '@/api/Request';
 import { AuthStatus, useAuth } from '@/auth/Auth';
 import { OpenClassical } from '@/database/tournament';
+import { useRouter } from '@/hooks/useRouter';
 import LoadingPage from '@/loading/LoadingPage';
 import { TabContext, TabList, TabPanel } from '@mui/lab';
 import { Container, Stack, Tab, Typography } from '@mui/material';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import BannedPlayersTab from './BannedPlayersTab';
 import CompleteTournament from './CompleteTournament';
@@ -56,10 +56,7 @@ const AdminPage = () => {
                 <Typography variant='h4' mb={2}>
                     Open Classical Admin
                 </Typography>
-                <CompleteTournament
-                    openClassical={request.data}
-                    onSuccess={request.onSuccess}
-                />
+                <CompleteTournament openClassical={request.data} onSuccess={request.onSuccess} />
             </Stack>
 
             <RequestSnackbar request={request} />
@@ -75,16 +72,10 @@ const AdminPage = () => {
                         <Tab label='Banned Players' value='bannedPlayers' />
                     </TabList>
                     <TabPanel value='players'>
-                        <PlayersTab
-                            openClassical={request.data}
-                            onUpdate={request.onSuccess}
-                        />
+                        <PlayersTab openClassical={request.data} onUpdate={request.onSuccess} />
                     </TabPanel>
                     <TabPanel value='pairings'>
-                        <PairingsTab
-                            openClassical={request.data}
-                            onUpdate={request.onSuccess}
-                        />
+                        <PairingsTab openClassical={request.data} onUpdate={request.onSuccess} />
                     </TabPanel>
                     <TabPanel value='bannedPlayers'>
                         <BannedPlayersTab

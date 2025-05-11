@@ -18,9 +18,7 @@ describe('Submit Results Page', () => {
         cy.getBySel('game-url').type('https://lichess.org/Mw461kKB9Rsq');
         cy.getBySel('game-url').find('input').blur();
 
-        cy.getBySel('white')
-            .find('input')
-            .should('have.attr', 'value', 'shatterednirvana');
+        cy.getBySel('white').find('input').should('have.attr', 'value', 'shatterednirvana');
         cy.getBySel('black').find('input').should('have.attr', 'value', 'jackstenglein');
         cy.contains('Black Wins (0-1)');
     });
@@ -30,7 +28,7 @@ describe('Submit Results Page', () => {
         cy.contains('Region A').click();
 
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
 
         cy.getBySel('game-url').type('https://test.com');
         cy.getBySel('white').type('shatterednirvana');
@@ -48,7 +46,7 @@ describe('Submit Results Page', () => {
         cy.getBySel('email').type('test@example.com');
 
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
 
         cy.getBySel('game-url').type('https://test.com');
         cy.getBySel('white').type('shatterednirvana');
@@ -88,7 +86,7 @@ describe('Submit Results Page', () => {
         cy.contains('Region A').click();
 
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
 
         cy.getBySel('white').type('shatterednirvana');
         cy.getBySel('black').type('jackstenglein');
@@ -108,7 +106,7 @@ describe('Submit Results Page', () => {
         cy.contains('Region A').click();
 
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
 
         cy.getBySel('game-url').type('https://test.com');
         cy.getBySel('black').type('jackstenglein');
@@ -128,7 +126,7 @@ describe('Submit Results Page', () => {
         cy.contains('Region A').click();
 
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
 
         cy.getBySel('game-url').type('https://test.com');
         cy.getBySel('white').type('jackstenglein');
@@ -148,7 +146,7 @@ describe('Submit Results Page', () => {
         cy.contains('Region A').click();
 
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
 
         cy.getBySel('game-url').type('https://test.com');
         cy.getBySel('white').type('jackstenglein');
@@ -165,9 +163,7 @@ describe('Submit Results Page', () => {
             cy.contains(result).click();
 
             cy.getBySel('submit-button').click();
-            cy.getBySel('game-url')
-                .contains('This field is required')
-                .should('not.exist');
+            cy.getBySel('game-url').contains('This field is required').should('not.exist');
         });
 
         cy.getBySel('result').click();
@@ -194,7 +190,7 @@ describe('Submit Results Page', () => {
         cy.interceptApi('POST', '/public/tournaments/open-classical/results', {
             body: {
                 sections: {
-                    A_U1800: {
+                    A_U1900: {
                         rounds: [],
                     },
                 },
@@ -205,7 +201,7 @@ describe('Submit Results Page', () => {
         cy.getBySel('region').click();
         cy.contains('Region A').click();
         cy.getBySel('section').click();
-        cy.contains('U1800').click();
+        cy.contains('U1900').click();
         cy.getBySel('game-url').type('https://test.com');
         cy.getBySel('white').type('cypress');
         cy.getBySel('black').type('cypress');

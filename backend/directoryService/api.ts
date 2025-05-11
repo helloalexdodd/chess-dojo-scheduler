@@ -1,5 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { ZodEffects, ZodSchema, ZodTypeAny } from 'zod';
+import { ZodEffects, ZodSchema, ZodTypeAny, ZodTypeDef } from 'zod';
 
 export class ApiError extends Error {
     statusCode: number;
@@ -41,7 +41,11 @@ export class ApiError extends Error {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
             },
-            body: JSON.stringify({ message: this.publicMessage, code: this.statusCode }),
+            body: JSON.stringify({
+                message: this.publicMessage,
+                code: this.statusCode,
+                privateMessage: this.privateMessage,
+            }),
         };
     }
 }
@@ -55,7 +59,7 @@ function unknownError(err: any): APIGatewayProxyResultV2 {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ message: 'Temporary server error', code: 500 }),
+        body: JSON.stringify({ message: 'Temporary server error', code: 500, privateMessage: err }),
     };
 }
 
@@ -167,7 +171,10 @@ export function parseEvent<T>(
  * @param schema The Zod schema to parse.
  * @returns The parsed request body.
  */
-export function parseBody<T>(event: APIGatewayProxyEventV2, schema: ZodSchema<T>): T {
+export function parseBody<Output, Def extends ZodTypeDef, Input>(
+    event: APIGatewayProxyEventV2,
+    schema: ZodSchema<Output, Def, Input>,
+): Output {
     try {
         const body = JSON.parse(event.body || '{}');
         return schema.parse(body);
@@ -187,10 +194,7 @@ export function parseBody<T>(event: APIGatewayProxyEventV2, schema: ZodSchema<T>
  * @param schema The Zod schema to parse.
  * @returns The parsed parameters.
  */
-export function parsePathParameters<T>(
-    event: APIGatewayProxyEventV2,
-    schema: ZodSchema<T>,
-): T {
+export function parsePathParameters<T>(event: APIGatewayProxyEventV2, schema: ZodSchema<T>): T {
     try {
         return schema.parse(event.pathParameters);
     } catch (err) {

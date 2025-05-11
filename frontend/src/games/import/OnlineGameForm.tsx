@@ -7,15 +7,26 @@ import {
 } from '@/api/external/onlineGame';
 import {
     isChesscomAnalysisURL,
+    isChesscomEventsUrl,
     isChesscomGameURL,
     isLichessChapterURL,
     isLichessGameURL,
     isLichessStudyURL,
 } from '@/api/gameApi';
+import { RequestSnackbar, useRequest } from '@/api/Request';
+import {
+    getChesscomAnalysis,
+    getChesscomEvent,
+    getChesscomGame,
+    getLichessChapter,
+    getLichessGame,
+    PgnImportResult,
+} from '@/app/(scoreboard)/games/analysis/server';
 import { useAuth } from '@/auth/Auth';
-import { toDojoDateString, toDojoTimeString } from '@/calendar/displayDate';
+import { toDojoDateString, toDojoTimeString } from '@/components/calendar/displayDate';
 import { RenderPlayers } from '@/components/games/list/GameListItem';
-import { RatingSystem, isCohortInRange } from '@/database/user';
+import { Link } from '@/components/navigation/Link';
+import { isCohortInRange, RatingSystem } from '@/database/user';
 import LoadingPage from '@/loading/LoadingPage';
 import {
     GameImportTypes,
@@ -29,8 +40,7 @@ import {
     CardContent,
     DialogContent,
     DialogTitle,
-    Grid2,
-    Link,
+    Grid,
     Stack,
     TextField,
     Typography,
@@ -121,7 +131,7 @@ const RecentGameCell = ({
                                         : undefined
                                 }
                             >
-                                {game.timeClass === OnlineGameTimeClass.Correspondence
+                                {game.timeClass === OnlineGameTimeClass.Daily
                                     ? 'daily'
                                     : `${game.timeControl.initialSeconds / 60} | ${game.timeControl.incrementSeconds}`}
                             </Typography>
@@ -156,9 +166,9 @@ const RecentGameGrid = ({
     onClickGame: (game: OnlineGame) => void;
 }) => {
     return (
-        <Grid2 container spacing={{ xs: 1, sm: 2 }}>
+        <Grid container spacing={{ xs: 1, sm: 2 }}>
             {games.map((game) => (
-                <Grid2
+                <Grid
                     key={game.id}
                     size={{
                         xs: 12,
@@ -166,9 +176,9 @@ const RecentGameGrid = ({
                     }}
                 >
                     <RecentGameCell onClick={onClickGame} game={game} />
-                </Grid2>
+                </Grid>
             ))}
-        </Grid2>
+        </Grid>
     );
 };
 
@@ -176,6 +186,7 @@ export const OnlineGameForm = ({ loading, onSubmit, onClose }: ImportDialogProps
     const { user } = useAuth();
     const [url, setUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const request = useRequest();
 
     const lichessUsername = user?.ratings?.[RatingSystem.Lichess]?.username;
     const chesscomUsername = user?.ratings?.[RatingSystem.Chesscom]?.username;
@@ -197,24 +208,44 @@ export const OnlineGameForm = ({ loading, onSubmit, onClose }: ImportDialogProps
             return;
         }
 
-        const urlCheckers: [OnlineGameImportType, (url: string) => boolean][] = [
-            [GameImportTypes.lichessChapter, isLichessChapterURL],
-            [GameImportTypes.lichessStudy, isLichessStudyURL],
-            [GameImportTypes.lichessGame, isLichessGameURL],
-            [GameImportTypes.chesscomGame, isChesscomGameURL],
-            [GameImportTypes.chesscomAnalysis, isChesscomAnalysisURL],
+        const importMethods: [
+            OnlineGameImportType,
+            (url: string) => boolean,
+            ((url: string) => Promise<PgnImportResult<string>>) | null,
+        ][] = [
+            [GameImportTypes.lichessChapter, isLichessChapterURL, getLichessChapter],
+            [
+                GameImportTypes.lichessStudy,
+                isLichessStudyURL,
+                null, // TODO, handle this case
+            ],
+            [GameImportTypes.lichessGame, isLichessGameURL, getLichessGame],
+            [GameImportTypes.chesscomGame, isChesscomGameURL, getChesscomGame],
+            [GameImportTypes.chesscomAnalysis, isChesscomAnalysisURL, getChesscomAnalysis],
+            [GameImportTypes.chesscomGame, isChesscomEventsUrl, getChesscomEvent],
         ];
 
-        let submissionType: OnlineGameImportType | null = null;
-        for (const [candidate, matcher] of urlCheckers) {
-            if (matcher(url)) {
-                submissionType = candidate;
-                break;
+        // Import
+        for (const [submissionType, match, importPgn] of importMethods) {
+            if (!match(url)) {
+                continue;
             }
-        }
 
-        if (submissionType !== null) {
-            onSubmit({ url, type: submissionType });
+            if (importPgn === null) {
+                onSubmit({ url, type: submissionType });
+            } else {
+                importPgn(url)
+                    .then(({ data: pgnText, error }) => {
+                        if (error) {
+                            console.error(error.privateMessage);
+                            request.onFailure(error.publicMessage);
+                            return;
+                        }
+                        onSubmit({ pgnText: pgnText ?? '', type: 'manual' });
+                    })
+                    .catch(() => request.onFailure('Unexpected server error'));
+            }
+
             return;
         }
 
@@ -250,14 +281,20 @@ export const OnlineGameForm = ({ loading, onSubmit, onClose }: ImportDialogProps
                         paddingRight={1}
                         paddingTop={1}
                     >
-                        <Button disabled={loading} onClick={onClose}>
+                        <Button disabled={loading || request.isLoading()} onClick={onClose}>
                             Cancel
                         </Button>
-                        <ImportButton loading={loading} onClick={handleSubmit} />
+                        <ImportButton
+                            loading={loading || request.isLoading()}
+                            onClick={handleSubmit}
+                        />
                     </Stack>
                     <OrDivider header='Recent Games' />
                     {fetchGames ? (
-                        chesscom.isLoading() || lichess.isLoading() ? (
+                        loading ||
+                        request.isLoading() ||
+                        chesscom.isLoading() ||
+                        lichess.isLoading() ? (
                             <LoadingPage />
                         ) : (
                             <>
@@ -275,12 +312,13 @@ export const OnlineGameForm = ({ loading, onSubmit, onClose }: ImportDialogProps
                         )
                     ) : (
                         <Typography variant='body2'>
-                            To list recent games, add your Chess.com or Lichess username
-                            to your <Link href='/profile/edit#ratings'>profile</Link>.
+                            To list recent games, add your Chess.com or Lichess username to your{' '}
+                            <Link href='/profile/edit#ratings'>profile</Link>.
                         </Typography>
                     )}
                 </Stack>
             </DialogContent>
+            <RequestSnackbar request={request} />
         </>
     );
 };

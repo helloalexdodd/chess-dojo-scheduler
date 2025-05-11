@@ -1,5 +1,5 @@
 import { useLightMode } from '@/style/useLightMode';
-import { Event, EventType, Move, Pgn } from '@jackstenglein/chess';
+import { Chess, Event, EventType, Move, Pgn } from '@jackstenglein/chess';
 import { Divider, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { useLocalStorage } from 'usehooks-ts';
@@ -89,14 +89,7 @@ function getCapturedPieceCounts(fen: string) {
     return capturedPieces;
 }
 
-const rerenderHeaders = [
-    'White',
-    'WhiteElo',
-    'Black',
-    'BlackElo',
-    'Result',
-    'TimeControl',
-];
+const rerenderHeaders = ['White', 'WhiteElo', 'Black', 'BlackElo', 'Result', 'TimeControl'];
 
 const PlayerHeader: React.FC<PlayerHeaderProps> = ({ type }) => {
     const { chess, board } = useChess();
@@ -177,6 +170,8 @@ const PlayerHeader: React.FC<PlayerHeaderProps> = ({ type }) => {
         }
     }
 
+    const moveClockText = getMoveClockText(clockCommand, pgn, move);
+
     return (
         <Paper
             data-cy={`player-header-${type}`}
@@ -191,13 +186,14 @@ const PlayerHeader: React.FC<PlayerHeaderProps> = ({ type }) => {
             }}
         >
             <Stack direction='row' spacing={1} justifyContent='space-between'>
-                <Stack direction='row' spacing={1}>
+                <Stack direction='row' spacing={1} overflow='hidden' flexGrow={1}>
                     {playerResult && (
                         <>
                             <Typography
                                 variant='subtitle2'
                                 color='text.secondary'
                                 fontWeight='bold'
+                                whiteSpace='nowrap'
                             >
                                 {playerResult}
                             </Typography>
@@ -209,28 +205,32 @@ const PlayerHeader: React.FC<PlayerHeaderProps> = ({ type }) => {
                         variant='subtitle2'
                         color='text.secondary'
                         fontWeight='bold'
+                        whiteSpace='nowrap'
                     >
                         {playerName}
                     </Typography>
 
                     {playerElo && (
-                        <Typography variant='subtitle2' color='text.secondary'>
+                        <Typography variant='subtitle2' color='text.secondary' whiteSpace='nowrap'>
                             ({playerElo})
                         </Typography>
                     )}
 
-                    <CapturedMaterial move={currentMove} color={color} />
+                    <CapturedMaterial chess={chess} move={currentMove} color={color} />
                 </Stack>
 
-                <Tooltip title={ClockTypeDescriptions[clockCommand]}>
-                    <Typography
-                        variant='subtitle2'
-                        color='text.secondary'
-                        display='inline'
-                    >
-                        {getMoveClockText(clockCommand, pgn, move)}
-                    </Typography>
-                </Tooltip>
+                {moveClockText && (
+                    <Tooltip title={ClockTypeDescriptions[clockCommand]}>
+                        <Typography
+                            variant='subtitle2'
+                            color='text.secondary'
+                            display='inline'
+                            whiteSpace='nowrap'
+                        >
+                            {moveClockText}
+                        </Typography>
+                    </Tooltip>
+                )}
             </Stack>
         </Paper>
     );
@@ -256,31 +256,19 @@ function EmptyHeader({ type, light }: { type: string; light: boolean }) {
             <Stack direction='row' spacing={1} justifyContent='space-between'>
                 <Stack direction='row' spacing={1}>
                     <>
-                        <Typography
-                            variant='subtitle2'
-                            color='text.secondary'
-                            fontWeight='bold'
-                        >
+                        <Typography variant='subtitle2' color='text.secondary' fontWeight='bold'>
                             1
                         </Typography>
                         <Divider flexItem orientation='vertical' />
                     </>
 
-                    <Typography
-                        variant='subtitle2'
-                        color='text.secondary'
-                        fontWeight='bold'
-                    >
+                    <Typography variant='subtitle2' color='text.secondary' fontWeight='bold'>
                         Test
                     </Typography>
                 </Stack>
 
                 <Tooltip title='Test'>
-                    <Typography
-                        variant='subtitle2'
-                        color='text.secondary'
-                        display='inline'
-                    >
+                    <Typography variant='subtitle2' color='text.secondary' display='inline'>
                         1:30:00
                     </Typography>
                 </Tooltip>
@@ -289,20 +277,25 @@ function EmptyHeader({ type, light }: { type: string; light: boolean }) {
     );
 }
 
-const CapturedMaterial: React.FC<{ move: Move | null; color: 'w' | 'b' }> = ({
+const CapturedMaterial = ({
+    chess,
     move,
     color,
+}: {
+    chess: Chess;
+    move: Move | null;
+    color: 'w' | 'b';
 }) => {
     const [capturedMaterialBehavior] = useLocalStorage(
         CapturedMaterialBehaviorKey,
         CapturedMaterialBehavior.Difference,
     );
 
-    if (!move || capturedMaterialBehavior === CapturedMaterialBehavior.None) {
+    if (capturedMaterialBehavior === CapturedMaterialBehavior.None) {
         return null;
     }
 
-    const materialDifference = move.materialDifference;
+    const materialDifference = chess.materialDifference(move);
     let displayedMaterialDiff = '';
     if (color === 'w' && materialDifference > 0) {
         displayedMaterialDiff = `+${materialDifference}`;
@@ -310,9 +303,8 @@ const CapturedMaterial: React.FC<{ move: Move | null; color: 'w' | 'b' }> = ({
         displayedMaterialDiff = `+${Math.abs(materialDifference)}`;
     }
 
-    const pieceTypes =
-        color === 'w' ? ['p', 'n', 'b', 'r', 'q'] : ['P', 'N', 'B', 'R', 'Q'];
-    const capturedPieces = getCapturedPieceCounts(move.after);
+    const pieceTypes = color === 'w' ? ['p', 'n', 'b', 'r', 'q'] : ['P', 'N', 'B', 'R', 'Q'];
+    const capturedPieces = getCapturedPieceCounts(move?.after || chess.setUpFen());
 
     if (capturedMaterialBehavior === CapturedMaterialBehavior.Difference) {
         const opposingPieceTypes =
@@ -338,7 +330,7 @@ const CapturedMaterial: React.FC<{ move: Move | null; color: 'w' | 'b' }> = ({
                 <Typography
                     variant='body2'
                     color='text.secondary'
-                    sx={{ mt: '2px', ml: '2px' }}
+                    sx={{ mt: '2px', ml: '2px', whiteSpace: 'nowrap' }}
                 >
                     {displayedMaterialDiff}
                 </Typography>

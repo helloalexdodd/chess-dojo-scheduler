@@ -21,23 +21,6 @@ provider:
   deploymentMethod: direct
 
 functions:
-  create:
-    handler: create.handler
-    events:
-      - httpApi:
-          path: /directory
-          method: post
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:GetItem
-          - dynamodb:PutItem
-          - dynamodb:UpdateItem
-        Resource: !GetAtt DirectoriesTable.Arn
-
   createV2:
     handler: create.handlerV2
     events:
@@ -53,22 +36,6 @@ functions:
           - dynamodb:GetItem
           - dynamodb:PutItem
           - dynamodb:UpdateItem
-        Resource: !GetAtt DirectoriesTable.Arn
-
-  get:
-    handler: get.handler
-    events:
-      - httpApi:
-          path: /directory/{owner}/{id}
-          method: get
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:GetItem
-          - dynamodb:PutItem
         Resource: !GetAtt DirectoriesTable.Arn
 
   getV2:
@@ -100,21 +67,6 @@ functions:
       - Effect: Allow
         Action:
           - dynamodb:GetItem
-        Resource: !GetAtt DirectoriesTable.Arn
-
-  update:
-    handler: update.handler
-    events:
-      - httpApi:
-          path: /directory
-          method: put
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:UpdateItem
         Resource: !GetAtt DirectoriesTable.Arn
 
   updateV2:
@@ -149,27 +101,6 @@ functions:
           - dynamodb:GetItem
           - dynamodb:PutItem
         Resource: !GetAtt DirectoriesTable.Arn
-
-  delete:
-    handler: delete.handler
-    events:
-      - httpApi:
-          path: /directory/delete
-          method: put
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:DeleteItem
-          - dynamodb:UpdateItem
-          - dynamodb:GetItem
-        Resource: !GetAtt DirectoriesTable.Arn
-      - Effect: Allow
-        Action:
-          - dynamodb:PartiQLUpdate
-        Resource: ${param:GamesTableArn}
 
   deleteV2:
     handler: delete.handlerV2
@@ -213,50 +144,11 @@ functions:
           - dynamodb:PartiQLUpdate
         Resource: ${param:GamesTableArn}
 
-  addItems:
-    handler: addItems.handler
-    events:
-      - httpApi:
-          path: /directory/{id}/items
-          method: put
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:UpdateItem
-        Resource: !GetAtt DirectoriesTable.Arn
-      - Effect: Allow
-        Action:
-          - dynamodb:PartiQLUpdate
-        Resource: ${param:GamesTableArn}
-
   addItemsV2:
     handler: addItems.handlerV2
     events:
       - httpApi:
           path: /directory/{owner}/{id}/items
-          method: put
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:UpdateItem
-          - dynamodb:GetItem
-        Resource: !GetAtt DirectoriesTable.Arn
-      - Effect: Allow
-        Action:
-          - dynamodb:PartiQLUpdate
-        Resource: ${param:GamesTableArn}
-
-  removeItems:
-    handler: removeItems.handler
-    events:
-      - httpApi:
-          path: /directory/{directoryId}/items/delete
           method: put
           authorizer:
             type: jwt
@@ -292,27 +184,6 @@ functions:
           - dynamodb:PartiQLUpdate
         Resource: ${param:GamesTableArn}
 
-  moveItems:
-    handler: moveItems.handler
-    events:
-      - httpApi:
-          path: /directory/items/move
-          method: put
-          authorizer:
-            type: jwt
-            id: ${param:apiAuthorizer}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:GetItem
-          - dynamodb:UpdateItem
-          - dynamodb:PartiQLUpdate
-        Resource: !GetAtt DirectoriesTable.Arn
-      - Effect: Allow
-        Action:
-          - dynamodb:PartiQLUpdate
-        Resource: ${param:GamesTableArn}
-
   moveItemsV2:
     handler: moveItems.handlerV2
     events:
@@ -333,6 +204,74 @@ functions:
         Action:
           - dynamodb:PartiQLUpdate
         Resource: ${param:GamesTableArn}
+
+  startExport:
+    handler: export.startExport
+    events:
+      - httpApi:
+          path: /directory/export
+          method: post
+          authorizer:
+            type: jwt
+            id: ${param:apiAuthorizer}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource: !GetAtt DirectoryExportTable.Arn
+      - Effect: Allow
+        Action:
+          - lambda:InvokeFunction
+        Resource: !GetAtt RunExportLambdaFunction.Arn
+
+  runExport:
+    timeout: 900
+    handler: export.runExport
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+        Resource: !GetAtt DirectoryExportTable.Arn
+      - Effect: Allow
+        Action:
+          - dynamodb:BatchGetItem
+        Resource: ${param:GamesTableArn}
+      - Effect: Allow
+        Action:
+          - dynamodb:BatchGetItem
+          - dynamodb:GetItem
+        Resource: !GetAtt DirectoriesTable.Arn
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+        Resource: !Join
+          - ''
+          - - 'arn:aws:s3:::'
+            - ${param:GameDatabaseBucket}
+            - /exports/*/*.zip
+
+  checkExport:
+    handler: export.checkExport
+    events:
+      - httpApi:
+          path: /directory/export/{id}
+          method: get
+          authorizer:
+            type: jwt
+            id: ${param:apiAuthorizer}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+        Resource: !GetAtt DirectoryExportTable.Arn
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+        Resource: !Join
+          - ''
+          - - 'arn:aws:s3:::'
+            - ${param:GameDatabaseBucket}
+            - /exports/*/*.zip
 
 resources:
   Conditions:
@@ -362,6 +301,25 @@ resources:
             KeyType: RANGE
         StreamSpecification:
           StreamViewType: OLD_IMAGE
+
+    DirectoryExportTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${sls:stage}-directory-exports
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: username
+            AttributeType: S
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: username
+            KeyType: HASH
+          - AttributeName: id
+            KeyType: RANGE
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
 
   Outputs:
     DirectoriesTableArn:

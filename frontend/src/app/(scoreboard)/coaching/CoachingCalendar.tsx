@@ -1,17 +1,17 @@
 import { useApi } from '@/api/Api';
 import { Request, RequestSnackbar, useRequest } from '@/api/Request';
+import { getProcessedEvents } from '@/app/(scoreboard)/calendar/CalendarPage';
 import { useAuth } from '@/auth/Auth';
-import { getProcessedEvents } from '@/calendar/CalendarPage';
-import EventEditor from '@/calendar/eventEditor/EventEditor';
-import ProcessedEventViewer from '@/calendar/eventViewer/ProcessedEventViewer';
-import { getHours, useFilters } from '@/calendar/filters/CalendarFilters';
-import TimezoneFilter from '@/calendar/filters/TimezoneFilter';
-import { DefaultTimezone } from '@/calendar/filters/TimezoneSelector';
+import EventEditor from '@/components/calendar/eventEditor/EventEditor';
+import ProcessedEventViewer from '@/components/calendar/eventViewer/ProcessedEventViewer';
+import { getHours, useFilters } from '@/components/calendar/filters/CalendarFilters';
+import TimezoneFilter from '@/components/calendar/filters/TimezoneFilter';
+import { DefaultTimezone } from '@/components/calendar/filters/TimezoneSelector';
 import { Event } from '@/database/event';
 import { TimeFormat } from '@/database/user';
-import { Scheduler } from '@aldabil/react-scheduler';
-import { ProcessedEvent, SchedulerRef } from '@aldabil/react-scheduler/types';
-import { Grid2, Stack } from '@mui/material';
+import { Scheduler } from '@jackstenglein/react-scheduler';
+import { ProcessedEvent, SchedulerRef } from '@jackstenglein/react-scheduler/types';
+import { Grid, Stack } from '@mui/material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface CoachingCalendarProps {
@@ -158,9 +158,9 @@ const CoachingCalendar: React.FC<CoachingCalendarProps> = ({
     const [minHour, maxHour] = getHours(filters.minHour, filters.maxHour);
 
     return (
-        <Grid2 container spacing={2}>
+        <Grid container spacing={2}>
             <RequestSnackbar request={request} />
-            <Grid2
+            <Grid
                 size={{
                     xs: 12,
                     md: 2.5,
@@ -178,8 +178,8 @@ const CoachingCalendar: React.FC<CoachingCalendarProps> = ({
                 >
                     <TimezoneFilter filters={filters} />
                 </Stack>
-            </Grid2>
-            <Grid2
+            </Grid>
+            <Grid
                 size={{
                     xs: 12,
                     md: 9.5,
@@ -194,6 +194,7 @@ const CoachingCalendar: React.FC<CoachingCalendarProps> = ({
                         startHour: minHour,
                         endHour: maxHour,
                         navigation: true,
+                        step: 60,
                     }}
                     week={{
                         weekDays: [0, 1, 2, 3, 4, 5, 6],
@@ -216,15 +217,11 @@ const CoachingCalendar: React.FC<CoachingCalendarProps> = ({
                         <ProcessedEventViewer processedEvent={event} />
                     )}
                     events={processedEvents}
-                    timeZone={
-                        filters.timezone === DefaultTimezone
-                            ? undefined
-                            : filters.timezone
-                    }
+                    timeZone={filters.timezone === DefaultTimezone ? undefined : filters.timezone}
                     hourFormat={filters.timeFormat || TimeFormat.TwelveHour}
                 />
-            </Grid2>
-        </Grid2>
+            </Grid>
+        </Grid>
     );
 };
 

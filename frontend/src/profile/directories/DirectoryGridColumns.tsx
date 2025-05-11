@@ -1,6 +1,7 @@
 import { useAuth } from '@/auth/Auth';
-import { toDojoDateString, toDojoTimeString } from '@/calendar/displayDate';
-import { RenderPlayers, RenderResult } from '@/components/games/list/GameListItem';
+import { toDojoDateString, toDojoTimeString } from '@/components/calendar/displayDate';
+import { RenderGameResultStack, RenderPlayers } from '@/components/games/list/GameListItem';
+import { Link } from '@/components/navigation/Link';
 import { MastersCohort, MastersOwnerDisplayName } from '@/database/game';
 import { dojoCohorts } from '@/database/user';
 import CohortIcon from '@/scoreboard/CohortIcon';
@@ -11,7 +12,7 @@ import {
     DirectoryVisibility,
 } from '@jackstenglein/chess-dojo-common/src/database/directory';
 import { Folder, Visibility, VisibilityOff } from '@mui/icons-material';
-import { Link, Stack, Tooltip, Typography } from '@mui/material';
+import { Stack, Tooltip, Typography } from '@mui/material';
 import { GridColDef, GridRenderCellParams } from '@mui/x-data-grid-pro';
 import Avatar from '../Avatar';
 
@@ -99,7 +100,7 @@ export const publicColumns: GridColDef<DirectoryItem>[] = [
             if (params.row.type === DirectoryItemTypes.DIRECTORY) {
                 return null;
             }
-            return RenderResult(params);
+            return <RenderGameResultStack result={params.row.metadata.result} />;
         },
         width: 50,
         disableColumnMenu: true,
@@ -164,51 +165,52 @@ export const publicColumns: GridColDef<DirectoryItem>[] = [
 export const adminColumns: GridColDef<DirectoryItem>[] = [
     ...publicColumns.slice(0, 2),
     {
-        field: 'result',
-        headerName: 'Result/Visibility',
+        field: 'visibility',
+        headerName: 'Visibility',
         headerAlign: 'center',
         valueGetter: (_value, row) => {
             switch (row.type) {
                 case DirectoryItemTypes.DIRECTORY:
                     return row.metadata.visibility;
                 default:
-                    return row.metadata.result;
+                    return row.metadata.unlisted
+                        ? DirectoryVisibility.PRIVATE
+                        : DirectoryVisibility.PUBLIC;
             }
         },
         renderCell: (params) => {
+            let isPublic = false;
             if (params.row.type === DirectoryItemTypes.DIRECTORY) {
-                const isPublic =
-                    params.row.metadata.visibility === DirectoryVisibility.PUBLIC;
-                return (
-                    <Stack
-                        width={1}
-                        height={1}
-                        alignItems='center'
-                        justifyContent='center'
-                    >
-                        <Tooltip
-                            title={
-                                isPublic
-                                    ? 'This directory is public'
-                                    : 'This directory is private'
-                            }
-                        >
-                            {isPublic ? (
-                                <Visibility sx={{ color: 'text.secondary' }} />
-                            ) : (
-                                <VisibilityOff sx={{ color: 'text.secondary' }} />
-                            )}
-                        </Tooltip>
-                    </Stack>
-                );
+                isPublic = params.row.metadata.visibility === DirectoryVisibility.PUBLIC;
+            } else {
+                isPublic = !params.row.metadata.unlisted;
             }
-            return RenderResult(params);
+
+            return (
+                <Stack width={1} height={1} alignItems='center' justifyContent='center'>
+                    <Tooltip
+                        title={
+                            isPublic
+                                ? 'Public'
+                                : params.row.type === DirectoryItemTypes.DIRECTORY
+                                  ? 'Private'
+                                  : 'Unlisted'
+                        }
+                    >
+                        {isPublic ? (
+                            <Visibility sx={{ color: 'text.secondary' }} />
+                        ) : (
+                            <VisibilityOff sx={{ color: 'text.secondary' }} />
+                        )}
+                    </Tooltip>
+                </Stack>
+            );
         },
         width: 50,
         disableColumnMenu: true,
         flex: 0.25,
     },
-    ...publicColumns.slice(3),
+    ...publicColumns.slice(2),
 ];
 
 function DirectoryCreatedAt({ createdAt }: { createdAt?: string }) {

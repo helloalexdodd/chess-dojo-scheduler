@@ -6,13 +6,11 @@ import { BlockBoardKeyboardShortcuts, useChess } from './PgnBoard';
 import VariationDialog from './VariationDialog';
 import { UnderboardApi } from './boardTools/underboard/Underboard';
 import {
-    BoardKeyBindingsKey,
-    ShortcutAction,
-    defaultKeyBindings,
     keyboardShortcutHandlers,
     matchAction,
     modifierKeys,
 } from './boardTools/underboard/settings/KeyboardShortcuts';
+import { ShortcutAction, ShortcutBindings } from './boardTools/underboard/settings/ShortcutAction';
 import {
     VariationBehavior,
     VariationBehaviorKey,
@@ -25,12 +23,9 @@ interface KeyboardHandlerProps {
 const KeyboardHandler: React.FC<KeyboardHandlerProps> = ({ underboardRef }) => {
     const { chess, board, keydownMap, toggleOrientation } = useChess();
     const reconcile = useReconcile();
-    const [variationBehavior] = useLocalStorage(
-        VariationBehaviorKey,
-        VariationBehavior.Dialog,
-    );
+    const [variationBehavior] = useLocalStorage(VariationBehaviorKey, VariationBehavior.Dialog);
     const [variationDialogMove, setVariationDialogMove] = useState<Move | null>(null);
-    const [keyBindings] = useLocalStorage(BoardKeyBindingsKey, defaultKeyBindings);
+    const [keyBindings] = useLocalStorage(ShortcutBindings.key, ShortcutBindings.default);
 
     useEffect(() => {
         if (variationBehavior !== VariationBehavior.Dialog) {
@@ -134,9 +129,7 @@ const KeyboardHandler: React.FC<KeyboardHandlerProps> = ({ underboardRef }) => {
         return null;
     }
 
-    return (
-        <VariationDialog move={variationDialogMove} setMove={setVariationDialogMove} />
-    );
+    return <VariationDialog move={variationDialogMove} setMove={setVariationDialogMove} />;
 };
 
 export default KeyboardHandler;

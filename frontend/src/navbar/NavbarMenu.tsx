@@ -1,9 +1,16 @@
 import { useNotifications } from '@/api/cache/Cache';
-import NotificationButton from '@/notifications/NotificationButton';
+import { AuthStatus, useAuth } from '@/auth/Auth';
+import { Link } from '@/components/navigation/Link';
+import NotificationButton from '@/components/notifications/NotificationButton';
+import { getConfig } from '@/config';
+import { hasCreatedProfile } from '@/database/user';
 import { ChessDojoIcon } from '@/style/ChessDojoIcon';
 import { PawnIcon } from '@/style/ChessIcons';
+import { CrossedSwordIcon } from '@/style/CrossedSwordIcon';
+import { DonateIcon } from '@/style/DonateIcon';
 import { FontAwesomeSvgIcon } from '@/style/Icon';
-import { TwitchIcon, YoutubeIcon } from '@/style/SocialMediaIcons';
+import { DiscordIcon, TwitchIcon, YoutubeIcon } from '@/style/SocialMediaIcons';
+import { TournamentBracketIcon } from '@/style/TournamentIcon';
 import { faPatreon } from '@fortawesome/free-brands-svg-icons';
 import {
     AutoStories,
@@ -44,7 +51,6 @@ import {
     Button,
     Collapse,
     IconButton,
-    Link,
     List,
     ListItemIcon,
     Menu,
@@ -55,12 +61,10 @@ import {
     useMediaQuery,
 } from '@mui/material';
 import React, { useState } from 'react';
-import { AuthStatus, useAuth } from '../auth/Auth';
-import { hasCreatedProfile } from '../database/user';
 import ProfileButton from './ProfileButton';
-import UnauthenticatedMenu, {
-    ExtraSmallMenuUnauthenticated,
-} from './UnauthenticatedMenu';
+import UnauthenticatedMenu, { ExtraSmallMenuUnauthenticated } from './UnauthenticatedMenu';
+
+const config = getConfig();
 
 export const Logo = () => {
     return (
@@ -74,9 +78,7 @@ export const Logo = () => {
                 marginRight: '15px',
             }}
         >
-            <ChessDojoIcon
-                sx={{ color: 'white', fontSize: { xs: '50px', md: '60px' } }}
-            />
+            <ChessDojoIcon sx={{ color: 'white', fontSize: { xs: '50px', md: '60px' } }} />
         </Link>
     );
 };
@@ -89,8 +91,9 @@ export interface NavbarItem {
     name: string;
     icon?: JSX.Element;
     onClick?: () => void;
-    children?: NavbarItem[];
+    children?: Omit<NavbarItem, 'onClick'>[];
     href?: string;
+    target?: '_blank';
 }
 
 function allStartItems(toggleExpansion: (item: string) => void): NavbarItem[] {
@@ -143,19 +146,19 @@ function allStartItems(toggleExpansion: (item: string) => void): NavbarItem[] {
             onClick: () => toggleExpansion('Tournaments'),
             children: [
                 {
-                    name: 'DojoLiga',
-                    icon: <MilitaryTech />,
-                    href: '/tournaments',
+                    name: 'Round Robin',
+                    icon: <CrossedSwordIcon />,
+                    href: '/tournaments/round-robin',
                 },
                 {
                     name: 'Open Classical',
-                    icon: <MilitaryTech />,
+                    icon: <TournamentBracketIcon />,
                     href: '/tournaments/open-classical',
                 },
                 {
-                    name: 'Round Robin',
+                    name: 'DojoLiga',
                     icon: <MilitaryTech />,
-                    href: '/tournaments/round-robin',
+                    href: '/tournaments/liga',
                 },
             ],
         },
@@ -210,22 +213,28 @@ function allStartItems(toggleExpansion: (item: string) => void): NavbarItem[] {
                     href: '/material/ratings',
                 },
                 {
+                    name: 'Discord',
+                    icon: <DiscordIcon sx={{ color: '#5865f2' }} />,
+                    href: config.discord.url,
+                    target: '_blank',
+                },
+                {
                     name: 'Twitch',
                     icon: <TwitchIcon color='twitch' />,
-                    onClick: () =>
-                        window.open('https://www.twitch.tv/chessdojo/videos', '_blank'),
+                    href: 'https://www.twitch.tv/chessdojo/videos',
+                    target: '_blank',
                 },
                 {
                     name: 'YouTube',
                     icon: <YoutubeIcon color='youtube' />,
-                    onClick: () =>
-                        window.open('https://www.youtube.com/@ChessDojo', '_blank'),
+                    href: 'https://www.youtube.com/@ChessDojo',
+                    target: '_blank',
                 },
                 {
                     name: 'Patreon',
                     icon: <FontAwesomeSvgIcon icon={faPatreon} sx={{ color: 'white' }} />,
-                    onClick: () =>
-                        window.open('https://www.patreon.com/ChessDojo', '_blank'),
+                    href: 'https://www.patreon.com/ChessDojo',
+                    target: '_blank',
                 },
             ],
         },
@@ -257,8 +266,13 @@ function allStartItems(toggleExpansion: (item: string) => void): NavbarItem[] {
                 {
                     name: 'Merch',
                     icon: <Storefront />,
-                    onClick: () =>
-                        window.open('https://www.chessdojo.shop/shop', '_blank'),
+                    href: 'https://www.chessdojo.shop/shop',
+                    target: '_blank',
+                },
+                {
+                    name: 'Donate',
+                    href: '/donate',
+                    icon: <DonateIcon />,
                 },
             ],
         },
@@ -278,11 +292,7 @@ function NotificationsMenuItem(): JSX.Element {
     return (
         <MenuItem href='/notifications'>
             <ListItemIcon>
-                <Badge
-                    badgeContent={notifications.length}
-                    color='secondary'
-                    overlap='circular'
-                >
+                <Badge badgeContent={notifications.length} color='secondary' overlap='circular'>
                     <Notifications />
                 </Badge>
             </ListItemIcon>
@@ -305,13 +315,6 @@ export const StartItem: React.FC<{ item: NavbarItem; meetingCount: number }> = (
         setAnchorEl(null);
     };
 
-    const handleClick = (func: () => void) => {
-        return () => {
-            func();
-            handleClose();
-        };
-    };
-
     if (item.name === 'Calendar') {
         return (
             <Button
@@ -319,15 +322,12 @@ export const StartItem: React.FC<{ item: NavbarItem; meetingCount: number }> = (
                 onClick={item.onClick}
                 sx={{ color: 'white', whiteSpace: 'nowrap' }}
                 startIcon={
-                    <Badge
-                        badgeContent={meetingCount}
-                        color='secondary'
-                        overlap='circular'
-                    >
+                    <Badge badgeContent={meetingCount} color='secondary' overlap='circular'>
                         {item.icon}
                     </Badge>
                 }
                 href={item.href}
+                component={Link}
             >
                 {item.name}
             </Button>
@@ -342,6 +342,7 @@ export const StartItem: React.FC<{ item: NavbarItem; meetingCount: number }> = (
                 sx={{ color: 'white', whiteSpace: 'nowrap' }}
                 startIcon={item.icon}
                 endIcon={item.children ? <ExpandMore /> : undefined}
+                component={item.href ? Link : 'button'}
                 href={item.href}
             >
                 {item.name}
@@ -356,11 +357,10 @@ export const StartItem: React.FC<{ item: NavbarItem; meetingCount: number }> = (
                     {item.children.map((child) => (
                         <MenuItem
                             key={child.name}
-                            onClick={
-                                child.onClick ? handleClick(child.onClick) : undefined
-                            }
-                            component={child.href ? 'a' : 'li'}
+                            onClick={handleClose}
+                            component={child.href ? Link : 'li'}
                             href={child.href}
+                            target={child.target}
                         >
                             {child.icon && <ListItemIcon>{child.icon}</ListItemIcon>}
                             <Typography textAlign='center'>{child.name}</Typography>
@@ -375,15 +375,15 @@ export const StartItem: React.FC<{ item: NavbarItem; meetingCount: number }> = (
 export const NavMenuItem: React.FC<{
     item: NavbarItem;
     openItems: Record<string, boolean>;
-    handleClick: (func: () => void) => () => void;
+    handleClose: () => void;
     meetingCount?: number;
-}> = ({ item, openItems, handleClick, meetingCount }) => {
+}> = ({ item, openItems, handleClose, meetingCount }) => {
     return (
         <>
             <MenuItem
                 key={item.name}
                 onClick={item.children ? item.onClick : undefined}
-                component={item.href ? 'a' : 'li'}
+                component={item.href ? Link : 'li'}
                 href={item.href}
             >
                 <ListItemIcon>{item.icon}</ListItemIcon>
@@ -408,12 +408,11 @@ export const NavMenuItem: React.FC<{
                         {item.children.map((child) => (
                             <MenuItem
                                 key={child.name}
-                                onClick={
-                                    child.onClick ? handleClick(child.onClick) : undefined
-                                }
+                                onClick={handleClose}
                                 sx={{ pl: 3 }}
-                                component={child.href ? 'a' : 'li'}
+                                component={child.href ? Link : 'li'}
                                 href={child.href}
+                                target={child.target}
                             >
                                 {child.icon ? (
                                     <ListItemIcon>{child.icon}</ListItemIcon>
@@ -442,10 +441,7 @@ function HelpButton() {
     );
 }
 
-function useNavbarItems(
-    meetingCount: number,
-    handleClick: (func: () => void) => () => void,
-) {
+function useNavbarItems(meetingCount: number, handleClose: () => void) {
     const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
     const auth = useAuth();
 
@@ -484,11 +480,14 @@ function useNavbarItems(
         startItemCount = startItems.length - 8;
     }
 
+    const onClose = () => {
+        setOpenItems({});
+        handleClose();
+    };
+
     const shownStartItems: JSX.Element[] = startItems
         .slice(0, startItemCount)
-        .map((item) => (
-            <StartItem key={item.name} item={item} meetingCount={meetingCount} />
-        ));
+        .map((item) => <StartItem key={item.name} item={item} meetingCount={meetingCount} />);
 
     const menuItems: JSX.Element[] = startItems
         .slice(startItemCount)
@@ -497,7 +496,7 @@ function useNavbarItems(
                 key={item.name}
                 item={item}
                 openItems={openItems}
-                handleClick={handleClick}
+                handleClose={onClose}
                 meetingCount={meetingCount}
             />
         ));
@@ -518,7 +517,7 @@ function useNavbarItems(
                 key='help'
                 item={helpItem()}
                 openItems={openItems}
-                handleClick={handleClick}
+                handleClose={onClose}
             />,
         );
     }
@@ -527,7 +526,13 @@ function useNavbarItems(
         endItems.push(<ProfileButton key='profileDropdown' />);
     } else {
         menuItems.push(
-            <MenuItem key='signout' onClick={handleClick(auth.signout)}>
+            <MenuItem
+                key='signout'
+                onClick={() => {
+                    auth.signout();
+                    onClose();
+                }}
+            >
                 <ListItemIcon>
                     <Logout color='error' />
                 </ListItemIcon>
@@ -557,14 +562,7 @@ const LargeMenu = ({ meetingCount }: MenuProps) => {
         setAnchorEl(null);
     };
 
-    const handleClick = (func: () => void) => {
-        return () => {
-            func();
-            handleClose();
-        };
-    };
-
-    const { startItems, menuItems, endItems } = useNavbarItems(meetingCount, handleClick);
+    const { startItems, menuItems, endItems } = useNavbarItems(meetingCount, handleClose);
     const profileCreated = hasCreatedProfile(auth.user);
 
     if (!profileCreated) {
@@ -572,11 +570,7 @@ const LargeMenu = ({ meetingCount }: MenuProps) => {
             <>
                 <Logo />
                 <Stack spacing={1} direction='row' sx={{ flexGrow: 1 }}>
-                    <Button
-                        href='/profile'
-                        sx={{ color: 'white' }}
-                        startIcon={<Person2Icon />}
-                    >
+                    <Button href='/profile' sx={{ color: 'white' }} startIcon={<Person2Icon />}>
                         Profile
                     </Button>
                 </Stack>
@@ -646,14 +640,7 @@ const ExtraSmallMenu = ({ meetingCount }: MenuProps) => {
 
     const handleClose = () => {
         setAnchorEl(null);
-    };
-
-    const handleClick = (func: () => void) => {
-        return () => {
-            func();
-            handleClose();
-            setOpenItems({});
-        };
+        setOpenItems({});
     };
 
     const profileCreated = hasCreatedProfile(auth.user);
@@ -665,7 +652,7 @@ const ExtraSmallMenu = ({ meetingCount }: MenuProps) => {
                 key={item.name}
                 item={item}
                 openItems={openItems}
-                handleClick={handleClick}
+                handleClose={handleClose}
                 meetingCount={meetingCount}
             />
         ));
@@ -697,7 +684,7 @@ const ExtraSmallMenu = ({ meetingCount }: MenuProps) => {
                 onClose={handleClose}
             >
                 {!profileCreated && (
-                    <MenuItem component='a' href='/profile'>
+                    <MenuItem component={Link} href='/profile'>
                         <ListItemIcon>
                             <Person2Icon />
                         </ListItemIcon>
@@ -707,7 +694,7 @@ const ExtraSmallMenu = ({ meetingCount }: MenuProps) => {
 
                 {startItemsJsx}
 
-                <MenuItem component='a' href='/notifications'>
+                <MenuItem component={Link} href='/notifications'>
                     <ListItemIcon>
                         <Badge
                             badgeContent={notifications.length}
@@ -720,14 +707,19 @@ const ExtraSmallMenu = ({ meetingCount }: MenuProps) => {
                     <Typography textAlign='center'>Notifications</Typography>
                 </MenuItem>
 
-                <MenuItem component='a' href='/help'>
+                <MenuItem component={Link} href='/help'>
                     <ListItemIcon>
                         <Help />
                     </ListItemIcon>
                     <Typography textAlign='center'>Help</Typography>
                 </MenuItem>
 
-                <MenuItem onClick={handleClick(auth.signout)}>
+                <MenuItem
+                    onClick={() => {
+                        auth.signout();
+                        handleClose();
+                    }}
+                >
                     <ListItemIcon>
                         <Logout color='error' />
                     </ListItemIcon>

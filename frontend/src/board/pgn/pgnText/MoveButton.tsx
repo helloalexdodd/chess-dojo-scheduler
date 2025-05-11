@@ -1,14 +1,17 @@
+import { useApi } from '@/api/Api';
+import { RequestSnackbar, useRequest } from '@/api/Request';
+import { useAuth } from '@/auth/Auth';
 import { useReconcile } from '@/board/Board';
 import useGame from '@/context/useGame';
 import { HIGHLIGHT_ENGINE_LINES } from '@/stockfish/engine/engine';
 import { Chess, Event, EventType, Move, TimeControl } from '@jackstenglein/chess';
 import { clockToSeconds } from '@jackstenglein/chess-dojo-common/src/pgn/clock';
-import { Backspace, Help } from '@mui/icons-material';
+import { Backspace, Chat, Help, KeyboardReturn, Merge } from '@mui/icons-material';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import CheckIcon from '@mui/icons-material/Check';
-import DeleteIcon from '@mui/icons-material/Delete';
 import {
-    Grid2,
+    CircularProgress,
+    Grid,
     ListItemIcon,
     ListItemText,
     Menu,
@@ -23,16 +26,18 @@ import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'rea
 import { LongPressEventType, LongPressReactEvents, useLongPress } from 'use-long-press';
 import { useLocalStorage } from 'usehooks-ts';
 import { formatTime } from '../boardTools/underboard/clock/ClockUsage';
+import {
+    isUnsavedVariation,
+    saveSuggestedVariation,
+} from '../boardTools/underboard/comments/suggestVariation';
 import { DeletePrompt, useDeletePrompt } from '../boardTools/underboard/DeletePrompt';
 import { ShowMoveTimesInPgn } from '../boardTools/underboard/settings/ViewerSettings';
+import { MergeLineDialog } from '../boardTools/underboard/share/MergeLineDialog';
 import { compareNags, getStandardNag, nags } from '../Nag';
+import { nagIcons } from '../NagIcon';
 import { useChess } from '../PgnBoard';
 
-export function getTextColor(
-    move: Move,
-    inline?: boolean,
-    highlightEngineLines?: boolean,
-): string {
+export function getTextColor(move: Move, inline?: boolean, highlightEngineLines?: boolean): string {
     if (highlightEngineLines && move.commentDiag?.dojoEngine) {
         return 'error.main';
     }
@@ -48,18 +53,21 @@ export function getTextColor(
     return 'text.primary';
 }
 
+export interface MoveButtonSlotProps {
+    hideSuggestedVariationOwner?: boolean;
+}
+
 export interface ButtonProps {
     isCurrentMove: boolean;
     inline?: boolean;
     move: Move;
     onClickMove: (m: Move) => void;
     onRightClick: (
-        event:
-            | React.MouseEvent<HTMLButtonElement>
-            | LongPressReactEvents<HTMLButtonElement>,
+        event: React.MouseEvent<HTMLButtonElement> | LongPressReactEvents<HTMLButtonElement>,
     ) => void;
     text: string;
     time?: string;
+    slotProps?: MoveButtonSlotProps;
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
@@ -77,22 +85,31 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
         HIGHLIGHT_ENGINE_LINES.Default,
     );
 
-    const displayNags = move.nags?.sort(compareNags).map((nag) => {
-        const n = nags[getStandardNag(nag)];
-        if (!n) return null;
+    const prefixNags: JSX.Element[] = [];
+    const suffixNags: JSX.Element[] = [];
 
-        return (
-            <Tooltip key={n.label} title={n.description} disableInteractive>
+    move.nags?.sort(compareNags).forEach((nag) => {
+        const n = nags[getStandardNag(nag)];
+        if (!n) return;
+
+        const displayNag = (
+            <Tooltip key={nag} title={n.description} disableInteractive>
                 <Typography
                     display='inline'
                     fontSize='inherit'
                     lineHeight='inherit'
                     fontWeight='inherit'
                 >
-                    {n.label}
+                    {nagIcons[nag] ? nagIcons[nag] : n.label}
                 </Typography>
             </Tooltip>
         );
+
+        if (n.prefix) {
+            prefixNags.push(displayNag);
+        } else {
+            suffixNags.push(displayNag);
+        }
     });
 
     return (
@@ -104,9 +121,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
             sx={{
                 textTransform: 'none',
                 fontWeight: isCurrentMove ? 'bold' : 'inherit',
-                color: isCurrentMove
-                    ? undefined
-                    : getTextColor(move, inline, highlightEngineLines),
+                color: isCurrentMove ? undefined : getTextColor(move, inline, highlightEngineLines),
                 backgroundColor: isCurrentMove ? 'primary' : undefined,
                 paddingRight: inline ? undefined : 2,
 
@@ -129,15 +144,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
             onContextMenu={onRightClick}
             {...longPress()}
         >
-            <Stack
-                direction='row'
-                alignItems='center'
-                justifyContent='space-between'
-                width={1}
-            >
+            <Stack direction='row' alignItems='center' justifyContent='space-between' width={1}>
                 <Stack direction='row' alignItems='center'>
+                    {prefixNags}
                     {text}
-                    {displayNags}
+                    {suffixNags}
                     {move.isNullMove && (
                         <Tooltip
                             title='A null move passes the turn to the opponent and is commonly used for demonstrating a threat.'
@@ -182,18 +193,28 @@ interface MoveMenuProps {
 
 const MoveMenu = ({ anchor, move, onClose }: MoveMenuProps) => {
     const { chess, config } = useChess();
-    const { onDelete, deleteAction, onClose: onCloseDelete } = useDeletePrompt(chess);
+    const { game, onUpdateGame } = useGame();
+    const { onDelete, deleteAction, onClose: onCloseDelete } = useDeletePrompt(chess, onClose);
+    const [showMerge, setShowMerge] = useState(false);
+    const { user } = useAuth();
+    const api = useApi();
+    const saveVariationRequest = useRequest();
 
     if (!chess) {
         return null;
     }
 
+    const isInMainline = chess.isInMainline(move);
     const canPromote = chess.canPromoteVariation(move);
-    const canDeleteBefore =
-        config?.allowDeleteBefore && chess.isInMainline(move) && !!move.previous;
+    const canDeleteBefore = config?.allowDeleteBefore && isInMainline && !!move.previous;
 
     const onMakeMainline = () => {
         chess.promoteVariation(move, true);
+        onClose();
+    };
+
+    const onForceVariation = () => {
+        chess.forceVariation(move, { skipSeek: true });
         onClose();
     };
 
@@ -202,49 +223,96 @@ const MoveMenu = ({ anchor, move, onClose }: MoveMenuProps) => {
         onClose();
     };
 
+    const onSaveVariationAsComment = async () => {
+        try {
+            saveVariationRequest.onStart();
+            const response = await saveSuggestedVariation(user, game, api, chess, move);
+            saveVariationRequest.onSuccess();
+            if (response?.game) {
+                onUpdateGame?.(response.game);
+            }
+            onClose();
+        } catch (err) {
+            console.error('onSaveVariationAsComment: ', err);
+            saveVariationRequest.onFailure(err);
+        }
+    };
+
     return (
         <>
             <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={onClose}>
+                <RequestSnackbar request={saveVariationRequest} />
+
                 <MenuList>
-                    <MenuItem
-                        disabled={chess.isInMainline(move)}
-                        onClick={onMakeMainline}
-                    >
+                    {config?.allowMoveDeletion && (
+                        <>
+                            <MenuItem disabled={isInMainline} onClick={onMakeMainline}>
+                                <ListItemIcon>
+                                    <CheckIcon />
+                                </ListItemIcon>
+                                <ListItemText>Make main line</ListItemText>
+                            </MenuItem>
+
+                            <MenuItem disabled={!isInMainline} onClick={onForceVariation}>
+                                <ListItemIcon>
+                                    <KeyboardReturn sx={{ transform: 'scale(-1, 1)' }} />
+                                </ListItemIcon>
+                                <ListItemText>Force Variation</ListItemText>
+                            </MenuItem>
+
+                            <MenuItem disabled={!canPromote} onClick={onPromote}>
+                                <ListItemIcon>
+                                    <ArrowUpwardIcon />
+                                </ListItemIcon>
+                                <ListItemText>Move variation up</ListItemText>
+                            </MenuItem>
+
+                            <MenuItem onClick={() => onDelete(move, 'after')}>
+                                <ListItemIcon>
+                                    <Backspace sx={{ transform: 'rotateY(180deg)' }} />
+                                </ListItemIcon>
+                                <ListItemText>Delete from here</ListItemText>
+                            </MenuItem>
+
+                            <MenuItem
+                                disabled={!canDeleteBefore}
+                                onClick={() => onDelete(move, 'before')}
+                            >
+                                <ListItemIcon>
+                                    <Backspace />
+                                </ListItemIcon>
+                                <ListItemText>Delete before here</ListItemText>
+                            </MenuItem>
+                        </>
+                    )}
+
+                    <MenuItem onClick={() => setShowMerge(true)}>
                         <ListItemIcon>
-                            <CheckIcon />
+                            <Merge />
                         </ListItemIcon>
-                        <ListItemText>Make main line</ListItemText>
+                        <ListItemText>Merge Line into Game</ListItemText>
                     </MenuItem>
 
-                    <MenuItem disabled={!canPromote} onClick={onPromote}>
-                        <ListItemIcon>
-                            <ArrowUpwardIcon />
-                        </ListItemIcon>
-                        <ListItemText>Move variation up</ListItemText>
-                    </MenuItem>
-
-                    <MenuItem onClick={() => onDelete(move, 'after')}>
-                        <ListItemIcon>
-                            <DeleteIcon />
-                        </ListItemIcon>
-                        <ListItemText>Delete from here</ListItemText>
-                    </MenuItem>
-
-                    <MenuItem
-                        disabled={!canDeleteBefore}
-                        onClick={() => onDelete(move, 'before')}
-                    >
-                        <ListItemIcon>
-                            <Backspace />
-                        </ListItemIcon>
-                        <ListItemText>Delete before here</ListItemText>
-                    </MenuItem>
+                    {game && isUnsavedVariation(move) && (
+                        <MenuItem
+                            onClick={onSaveVariationAsComment}
+                            disabled={saveVariationRequest.isLoading()}
+                        >
+                            <ListItemIcon>
+                                {saveVariationRequest.isLoading() ? (
+                                    <CircularProgress size={24} />
+                                ) : (
+                                    <Chat />
+                                )}
+                            </ListItemIcon>
+                            <ListItemText>Save Variation as Comment</ListItemText>
+                        </MenuItem>
+                    )}
                 </MenuList>
             </Menu>
 
-            {deleteAction && (
-                <DeletePrompt deleteAction={deleteAction} onClose={onCloseDelete} />
-            )}
+            {deleteAction && <DeletePrompt deleteAction={deleteAction} onClose={onCloseDelete} />}
+            <MergeLineDialog open={showMerge} onClose={() => setShowMerge(false)} move={move} />
         </>
     );
 };
@@ -255,6 +323,7 @@ interface MoveButtonProps {
     inline?: boolean;
     forceShowPly?: boolean;
     handleScroll: (child: HTMLButtonElement | null) => void;
+    slotProps?: MoveButtonSlotProps;
 }
 
 const MoveButton: React.FC<MoveButtonProps> = ({
@@ -263,18 +332,20 @@ const MoveButton: React.FC<MoveButtonProps> = ({
     inline,
     forceShowPly,
     handleScroll,
+    slotProps,
 }) => {
-    const { game } = useGame();
     const { chess, config } = useChess();
     const reconcile = useReconcile();
     const ref = useRef<HTMLButtonElement>(null);
     const [isCurrentMove, setIsCurrentMove] = useState(chess?.currentMove() === move);
     const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement>();
     const [, setForceRender] = useState(0);
-    const [showMoveTimes] = useLocalStorage(
+
+    const [viewerShowMoveTimes] = useLocalStorage(
         ShowMoveTimesInPgn.Key,
         ShowMoveTimesInPgn.Default,
     );
+    const showMoveTimes = viewerShowMoveTimes && config?.showElapsedMoveTimes;
 
     const onClickMove = useCallback(
         (move: Move | null) => {
@@ -327,40 +398,22 @@ const MoveButton: React.FC<MoveButtonProps> = ({
             chess.addObserver(observer);
             return () => chess.removeObserver(observer);
         }
-    }, [
-        chess,
-        move,
-        firstMove,
-        handleScroll,
-        setIsCurrentMove,
-        setForceRender,
-        showMoveTimes,
-    ]);
+    }, [chess, move, firstMove, handleScroll, setIsCurrentMove, setForceRender, showMoveTimes]);
 
     useEffect(() => {
         setIsCurrentMove(chess?.currentMove() === move);
-        if (
-            chess?.currentMove() === move ||
-            (firstMove && chess?.currentMove() === null)
-        ) {
+        if (chess?.currentMove() === move || (firstMove && chess?.currentMove() === null)) {
             handleScroll(ref.current);
         }
     }, [move, chess, setIsCurrentMove, firstMove, handleScroll]);
 
-    const allowMoveDeletion = config?.allowMoveDeletion;
     const onRightClick = useCallback(
-        (
-            event:
-                | React.MouseEvent<HTMLButtonElement>
-                | LongPressReactEvents<HTMLButtonElement>,
-        ) => {
-            if (allowMoveDeletion) {
-                event.preventDefault();
-                event.stopPropagation();
-                setMenuAnchorEl(event.currentTarget || event.target);
-            }
+        (event: React.MouseEvent<HTMLButtonElement> | LongPressReactEvents<HTMLButtonElement>) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setMenuAnchorEl(event.currentTarget || event.target);
         },
-        [setMenuAnchorEl, allowMoveDeletion],
+        [setMenuAnchorEl],
     );
 
     const handleMenuClose = () => {
@@ -390,22 +443,19 @@ const MoveButton: React.FC<MoveButtonProps> = ({
                     onClickMove={onClickMove}
                     onRightClick={onRightClick}
                     text={text}
+                    slotProps={slotProps}
                 />
                 {menuAnchorEl && (
-                    <MoveMenu
-                        anchor={menuAnchorEl}
-                        move={move}
-                        onClose={handleMenuClose}
-                    />
+                    <MoveMenu anchor={menuAnchorEl} move={move} onClose={handleMenuClose} />
                 )}
             </>
         );
     }
 
-    const moveTime = showMoveTimes && game ? getMoveTime(chess, move) : undefined;
+    const moveTime = showMoveTimes ? getMoveTime(chess, move) : undefined;
 
     return (
-        <Grid2 key={`move-${move.ply}`} size={5}>
+        <Grid key={`move-${move.ply}`} size={5}>
             <Button
                 ref={ref}
                 isCurrentMove={isCurrentMove}
@@ -415,11 +465,12 @@ const MoveButton: React.FC<MoveButtonProps> = ({
                 onRightClick={onRightClick}
                 text={moveText}
                 time={moveTime}
+                slotProps={slotProps}
             />
             {menuAnchorEl && (
                 <MoveMenu anchor={menuAnchorEl} move={move} onClose={handleMenuClose} />
             )}
-        </Grid2>
+        </Grid>
     );
 };
 
@@ -447,8 +498,12 @@ function getMoveTime(chess: Chess | undefined, move: Move): string {
         tcMoveNum += tc.moves || 0;
         if (moveNumber <= tcMoveNum) {
             timeControl = tc;
-            additionalTime = Math.max(0, timeControls[i + 1]?.seconds || 0);
+            const nextTimeControl =
+                i + 1 < timeControls.length ? timeControls[i + 1] : timeControls[i];
+            additionalTime = Math.max(0, nextTimeControl?.seconds || 0);
             break;
+        } else if (tc.moves && i + 1 === timeControls.length) {
+            i--;
         }
     }
 

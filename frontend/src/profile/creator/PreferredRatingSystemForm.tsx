@@ -1,25 +1,24 @@
-import { LoadingButton } from '@mui/lab';
-import {
-    Button,
-    Checkbox,
-    FormControlLabel,
-    Link,
-    MenuItem,
-    Stack,
-    TextField,
-    Typography,
-} from '@mui/material';
-import { useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { useApi } from '../../api/Api';
-import { RequestSnackbar, useRequest } from '../../api/Request';
+import { useApi } from '@/api/Api';
+import { RequestSnackbar, useRequest } from '@/api/Request';
+import { Link } from '@/components/navigation/Link';
 import {
     RatingSystem,
     User,
     formatRatingSystem,
     getRatingUsername,
     hideRatingUsername,
-} from '../../database/user';
+} from '@/database/user';
+import { LoadingButton } from '@mui/lab';
+import {
+    Button,
+    Checkbox,
+    FormControlLabel,
+    MenuItem,
+    Stack,
+    TextField,
+    Typography,
+} from '@mui/material';
+import { useState } from 'react';
 import { ProfileCreatorFormProps } from './ProfileCreatorPage';
 
 export function getUsernameLabel(rs: RatingSystem): string {
@@ -43,6 +42,8 @@ export function getUsernameLabel(rs: RatingSystem): string {
         case RatingSystem.Knsb:
             return 'KNSB ID';
         case RatingSystem.Custom:
+        case RatingSystem.Custom2:
+        case RatingSystem.Custom3:
             return '';
     }
 }
@@ -57,18 +58,15 @@ export function getHelperText(rs: RatingSystem): React.ReactNode | undefined {
         case RatingSystem.Acf:
         case RatingSystem.Knsb:
         case RatingSystem.Custom:
+        case RatingSystem.Custom2:
+        case RatingSystem.Custom3:
             return undefined;
 
         case RatingSystem.Dwz:
             return (
                 <>
                     Learn how to find your DWZ ID{' '}
-                    <Link
-                        component={RouterLink}
-                        to='/help#How%20do%20I%20find%20my%20DWZ%20ID?'
-                    >
-                        here
-                    </Link>
+                    <Link href='/help#How%20do%20I%20find%20my%20DWZ%20ID?'>here</Link>
                 </>
             );
 
@@ -95,15 +93,13 @@ export function getUsernameType(rs: RatingSystem): string {
             return 'rating code';
 
         case RatingSystem.Custom:
+        case RatingSystem.Custom2:
+        case RatingSystem.Custom3:
             return '';
     }
 }
 
-function getUpdate(
-    rs: RatingSystem,
-    username: string,
-    hideUsername: boolean,
-): Partial<User> {
+function getUpdate(rs: RatingSystem, username: string, hideUsername: boolean): Partial<User> {
     const result: Partial<User> = {
         ratingSystem: rs,
         ratings: {
@@ -119,7 +115,7 @@ function getUpdate(
     return result;
 }
 
-const { Custom, ...RatingSystems } = RatingSystem;
+const { Custom, Custom2, Custom3, ...RatingSystems } = RatingSystem;
 
 const PreferredRatingSystemForm: React.FC<ProfileCreatorFormProps> = ({
     user,
@@ -131,9 +127,7 @@ const PreferredRatingSystemForm: React.FC<ProfileCreatorFormProps> = ({
 
     const [ratingSystem, setRatingSystem] = useState(user.ratingSystem);
     const [username, setUsername] = useState(getRatingUsername(user, ratingSystem) || '');
-    const [hideUsername, setHideUsername] = useState(
-        hideRatingUsername(user, ratingSystem),
-    );
+    const [hideUsername, setHideUsername] = useState(hideRatingUsername(user, ratingSystem));
 
     const canSave = (ratingSystem as string) !== '' && username !== '';
 
@@ -150,10 +144,10 @@ const PreferredRatingSystemForm: React.FC<ProfileCreatorFormProps> = ({
     return (
         <Stack spacing={4}>
             <Typography>
-                Enter your preferred rating system, and we will place you in a cohort
-                based on your rating. You should choose the rating system that best
-                reflects your strength (IE: the one you play most often). You can always
-                change your cohort later if the program is too hard or too easy.
+                Enter your preferred rating system, and we will place you in a cohort based on your
+                rating. You should choose the rating system that best reflects your strength (IE:
+                the one you play most often). You can always change your cohort later if the program
+                is too hard or too easy.
             </Typography>
 
             <TextField
@@ -185,24 +179,16 @@ const PreferredRatingSystemForm: React.FC<ProfileCreatorFormProps> = ({
                         control={
                             <Checkbox
                                 checked={hideUsername}
-                                onChange={(event) =>
-                                    setHideUsername(event.target.checked)
-                                }
+                                onChange={(event) => setHideUsername(event.target.checked)}
                             />
                         }
-                        label={`Hide my ${getUsernameType(
-                            ratingSystem,
-                        )} from other dojo members`}
+                        label={`Hide my ${getUsernameType(ratingSystem)} from other dojo members`}
                     />
                 </Stack>
             )}
 
             <Stack direction='row' justifyContent='space-between'>
-                <Button
-                    disabled={request.isLoading()}
-                    onClick={onPrevStep}
-                    variant='contained'
-                >
+                <Button disabled={request.isLoading()} onClick={onPrevStep} variant='contained'>
                     Back
                 </Button>
 

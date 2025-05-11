@@ -73,18 +73,14 @@ export function useChesscomGames(): [
 
     const requestGames = useCallback(
         (params: ExportUserGamesParams, force?: boolean) => {
-            if (!force && (request.isLoading() || request.data)) {
+            if (!force && request.isSent()) {
                 return;
             }
 
             request.onStart();
 
             const games = params.timeframes.map((t) =>
-                axios
-                    .get<ChesscomGamesResponse>(
-                        `https://api.chess.com/pub/player/${params.username}/games/${t.year}/${t.month}`,
-                    )
-                    .then((resp) => resp.data.games),
+                fetchChesscomArchiveGames(params.username, t.year, t.month),
             );
 
             Promise.all(games)
@@ -100,4 +96,11 @@ export function useChesscomGames(): [
     );
 
     return [request.data, requestGames, request];
+}
+
+export async function fetchChesscomArchiveGames(username: string, year: string, month: string) {
+    const resp = await axios.get<ChesscomGamesResponse>(
+        `https://api.chess.com/pub/player/${username}/games/${year}/${month}`,
+    );
+    return resp.data.games;
 }

@@ -1,16 +1,20 @@
-import {
-    getIncrement,
-    getInitialClock,
-} from '@/board/pgn/boardTools/underboard/clock/ClockUsage';
+import { getIncrement, getInitialClock } from '@/board/pgn/boardTools/underboard/clock/ClockUsage';
+import { Link } from '@/components/navigation/Link';
 import { GameInfo, GameResult } from '@/database/game';
 import { dojoCohorts } from '@/database/user';
+import Avatar from '@/profile/Avatar';
 import CohortIcon from '@/scoreboard/CohortIcon';
 import { useLightMode } from '@/style/useLightMode';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import CircleIcon from '@mui/icons-material/Circle';
 import CircleOutlinedIcon from '@mui/icons-material/CircleOutlined';
-import { Box, Link, Stack, Typography } from '@mui/material';
-import { GridRenderCellParams } from '@mui/x-data-grid-pro';
-import { useLocation } from 'react-router-dom';
+import { Box, Grid, Stack, Typography } from '@mui/material';
+import {
+    gridColumnVisibilityModelSelector,
+    GridRenderCellParams,
+    useGridApiContext,
+    useGridSelector,
+} from '@mui/x-data-grid-pro';
 
 export const MastersCohort = 'masters';
 export const MastersOwnerDisplayName = 'Masters DB';
@@ -30,13 +34,7 @@ export function RenderPlayersCell(params: GridRenderCellParams<GameInfo>) {
     );
 }
 
-export function GameResultIcon({
-    result,
-    asWhite,
-}: {
-    result?: string;
-    asWhite: boolean;
-}) {
+export function GameResultIcon({ result, asWhite }: { result?: string; asWhite: boolean }) {
     if (result === GameResult.White) {
         return asWhite ? <WinIcon /> : <LoseIcon />;
     }
@@ -166,19 +164,11 @@ export function RenderGameResultStack({ result }: { result: string | undefined }
 }
 
 export function BlackIcon() {
-    const light = useLightMode();
-    const location = useLocation();
-
-    let blackIconColor = 'grey.800';
-    if (!light && location.pathname.match(/games\/.+/)) {
-        blackIconColor = 'common.black';
-    }
-
     return (
         <CircleIcon
             sx={{
                 fontSize: { xs: '0.75rem', sm: 'initial' },
-                color: blackIconColor,
+                color: 'grey.700',
             }}
         />
     );
@@ -259,43 +249,22 @@ export function RenderCohort({ cohort }: { cohort: string }) {
 export function RenderOwner({
     ownerDisplayName,
     owner,
+    avatarSize = 24,
 }: {
     ownerDisplayName: GameInfo['ownerDisplayName'];
     owner: GameInfo['owner'];
+    avatarSize?: number;
 }) {
     if (ownerDisplayName === '' || ownerDisplayName === MastersOwnerDisplayName) {
         return '';
     }
 
     return (
-        <Stack
-            direction='row'
-            spacing={1}
-            alignItems='center'
-            onClick={(e) => e.stopPropagation()}
-        >
+        <Stack direction='row' spacing={1} alignItems='center' onClick={(e) => e.stopPropagation()}>
+            {avatarSize > 0 && (
+                <Avatar username={owner} displayName={ownerDisplayName} size={avatarSize} />
+            )}
             <Link href={`/profile/${owner}`}>{ownerDisplayName}</Link>
-        </Stack>
-    );
-}
-
-export function RenderResult(params: GridRenderCellParams) {
-    if (!params.value) {
-        return '?';
-    }
-
-    return (
-        <Stack height={1} justifyContent='center' alignItems='center'>
-            <Typography sx={{ fontSize: { xs: '0.875rem', sm: 'initial' } }}>
-                {params.value === GameResult.White && '1'}
-                {params.value === GameResult.Black && '0'}
-                {params.value === GameResult.Draw && '½'}
-            </Typography>
-            <Typography sx={{ fontSize: { xs: '0.875rem', sm: 'initial' } }}>
-                {params.value === GameResult.White && '0'}
-                {params.value === GameResult.Black && '1'}
-                {params.value === GameResult.Draw && '½'}
-            </Typography>
         </Stack>
     );
 }
@@ -347,4 +316,86 @@ function getPlayerRating(rating?: string | number, provisional?: boolean) {
     str += ')';
 
     return str;
+}
+
+export function ListViewCell(params: GridRenderCellParams<GameInfo>) {
+    const apiRef = useGridApiContext();
+    const columnVisibilityModel = useGridSelector(apiRef, gridColumnVisibilityModelSelector);
+
+    const showVisibility = columnVisibilityModel.unlisted;
+
+    let description = getTimeControl({ timeControl: params.row.headers.TimeControl }) || '';
+
+    const moves = formatMoves(params.row.headers.PlyCount);
+    if (moves !== '?') {
+        if (description) {
+            description += ' • ';
+        }
+        description += `${moves} move${moves !== 1 ? 's' : ''}`;
+    }
+
+    if (params.row.date) {
+        if (description) {
+            description += ' • ';
+        }
+        description += params.row.date;
+    }
+
+    return (
+        <Stack height={1} justifyContent='center' py={1}>
+            <Grid container>
+                <Grid size={1}>
+                    <RenderGameResultStack result={params.row.headers.Result} />
+                </Grid>
+
+                <Grid size={11}>
+                    <Stack
+                        direction='row'
+                        flexWrap='wrap'
+                        justifyContent='space-between'
+                        alignItems='center'
+                    >
+                        {RenderPlayersCell(params)}
+
+                        {showVisibility && params.row.unlisted && (
+                            <VisibilityOff sx={{ color: 'text.secondary' }} />
+                        )}
+                        {showVisibility && !params.row.unlisted && (
+                            <Visibility sx={{ color: 'text.secondary' }} />
+                        )}
+                    </Stack>
+                </Grid>
+
+                <Grid size={1}></Grid>
+                <Grid size={11} sx={{ mt: 1 }}>
+                    <Typography variant='body2' color='text.secondary'>
+                        {description}
+                    </Typography>
+                </Grid>
+
+                <Grid size={1}></Grid>
+                <Grid size={11}>
+                    <Stack direction='row' alignItems='center'>
+                        <CohortIcon
+                            cohort={params.row.cohort}
+                            tooltip={params.row.cohort}
+                            size={16}
+                        />
+                        <Typography variant='body2' color='text.secondary' sx={{ ml: 0.5 }}>
+                            {params.row.cohort === MastersCohort ? 'Masters DB' : params.row.cohort}
+                        </Typography>
+
+                        {params.row.cohort !== MastersCohort && params.row.ownerDisplayName && (
+                            <>
+                                <Typography variant='body2' sx={{ mx: 0.5 }} color='text.secondary'>
+                                    •
+                                </Typography>
+                                {RenderOwner({ ...params.row, avatarSize: 0 })}
+                            </>
+                        )}
+                    </Stack>
+                </Grid>
+            </Grid>
+        </Stack>
+    );
 }

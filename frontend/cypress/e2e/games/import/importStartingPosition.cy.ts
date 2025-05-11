@@ -1,5 +1,3 @@
-import { cancelPreflight, deleteCurrentGame, gameUrlRegex } from './helpers';
-
 describe('Import Games Page - Position', () => {
     beforeEach(() => {
         cy.loginByCognitoApi(
@@ -13,19 +11,15 @@ describe('Import Games Page - Position', () => {
     it('submits with default FEN', () => {
         cy.getBySel('import-starting-position').click();
 
-        cy.location('pathname').should('match', gameUrlRegex);
-        cancelPreflight();
-
-        deleteCurrentGame();
+        cy.location('pathname').should('equal', '/games/analysis');
     });
 
-    it('shows unlisted icon', () => {
+    it('prevents navigating away from unsaved analysis', () => {
         cy.getBySel('import-starting-position').click();
+        cy.location('pathname').should('equal', '/games/analysis');
 
-        cy.location('pathname').should('match', gameUrlRegex);
-        cancelPreflight();
+        cy.contains('Training Plan').click();
 
-        cy.getBySel('unlisted-icon').click();
-        cy.getBySel('underboard-tab-settings').should('be.visible');
+        cy.getBySel('unsaved-analysis-nav-guard').should('be.visible');
     });
 });

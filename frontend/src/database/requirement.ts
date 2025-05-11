@@ -44,6 +44,12 @@ export interface CustomTask {
     /** The name of the CustomTask. */
     name: string;
 
+    /**
+     * Does not exist for CustomTasks, but makes the type system happy when
+     * working with both Requirements and CustomTasks.
+     */
+    dailyName?: undefined;
+
     /** The description of the CustomTask. */
     description: string;
 
@@ -53,17 +59,30 @@ export interface CustomTask {
      */
     counts: Record<string, number>;
 
-    /** The scoreboard display of the CustomTask. Should always be non-dojo. */
-    scoreboardDisplay: ScoreboardDisplay.NonDojo;
+    /** The scoreboard display of the CustomTask. */
+    scoreboardDisplay: ScoreboardDisplay;
 
-    /** The category of the CustomTask. Should always be non-dojo. */
-    category: RequirementCategory.NonDojo;
+    /** The category of the CustomTask. */
+    category: CustomTaskCategory;
+
+    /**
+     * The number of cohorts the requirement needs to be completed in before it
+     * stops being suggested. For requirements that restart their progress in every
+     * cohort, this is the special value -1.
+     */
+    numberOfCohorts: number;
+
+    /** An optional string that is used to label the count of the progress bar. */
+    progressBarSuffix: string;
 
     /** The last time the CustomTask definition was updated. */
     updatedAt: string;
 
-    /** Whether the CustomTask applies to the free tier. */
-    isFree?: boolean;
+    /**
+     * Does not exist for CustomTasks, but including this makes it easier to
+     * perform operations on objects of type Requirement|CustomTask.
+     */
+    startCount?: number;
 }
 
 /** A position in a requirement. */
@@ -95,6 +114,31 @@ export enum RequirementCategory {
     Graduation = 'Graduation',
     NonDojo = 'Non-Dojo',
     SuggestedTasks = 'Suggested Tasks',
+    Pinned = 'Pinned Tasks',
+}
+
+/** The categories of a custom task. This is a subset of RequirementCategory. */
+export type CustomTaskCategory = Extract<
+    RequirementCategory,
+    | RequirementCategory.Games
+    | RequirementCategory.Tactics
+    | RequirementCategory.Middlegames
+    | RequirementCategory.Endgame
+    | RequirementCategory.Opening
+>;
+
+/**
+ * Returns true if obj is of type CustomTaskCategory.
+ */
+export function isCustomTaskCategory(obj: unknown): obj is CustomTaskCategory {
+    return (
+        typeof obj === 'string' &&
+        (obj === RequirementCategory.Games ||
+            obj === RequirementCategory.Tactics ||
+            obj === RequirementCategory.Middlegames ||
+            obj === RequirementCategory.Endgame ||
+            obj === RequirementCategory.Opening)
+    );
 }
 
 /** A requirement in the training plan. */
@@ -116,6 +160,12 @@ export interface Requirement {
      * like the pie charts.
      */
     shortName?: string;
+
+    /**
+     * The optional daily name for the requirement, which is displayed in contexts
+     * like the training plan daily tab.
+     */
+    dailyName?: string;
 
     /** The description of the requirement. */
     description: string;
@@ -185,6 +235,12 @@ export interface Requirement {
      * can be updated.
      */
     blockers?: string[];
+
+    /**
+     * Indicates whether the task must be fully complete before the suggested
+     * task algorithm skips over it.
+     */
+    atomic: boolean;
 }
 
 /** A user's progress on a specific requirement. */
@@ -197,7 +253,7 @@ export interface RequirementProgress {
      * requirements whose progress carries over across cohorts, the special value
      * ALL_COHORTS is used as a key.
      */
-    counts: Record<string, number>;
+    counts?: Record<string, number>;
 
     /** A map from the cohort to the user's time spent on the requirement in that cohort. */
     minutesSpent: Record<string, number>;
@@ -212,7 +268,7 @@ export interface RequirementProgress {
  * @returns Whether obj is a Requirement.
  */
 export function isRequirement(obj: unknown): obj is Requirement {
-    return isObject(obj) && obj.numberOfCohorts !== undefined;
+    return isObject(obj) && obj.sortPriority !== undefined;
 }
 
 /**
@@ -238,7 +294,7 @@ export function compareRequirements(a: Requirement, b: Requirement) {
  */
 function clampCount(
     cohort: string,
-    requirement: Requirement,
+    requirement: Requirement | CustomTask,
     count: number,
     clamp?: boolean,
 ): number {
@@ -262,17 +318,17 @@ function clampCount(
  */
 export function getCurrentCount(
     cohort: string,
-    requirement: Requirement | CustomTask,
+    requirement?: Requirement | CustomTask,
     progress?: RequirementProgress,
     clamp?: boolean,
 ): number {
+    if (!requirement) {
+        return 0;
+    }
     if (!progress) {
         return 0;
     }
-    if (!isRequirement(requirement)) {
-        return 0;
-    }
-    if (requirement.scoreboardDisplay === ScoreboardDisplay.NonDojo) {
+    if (isRequirement(requirement) && requirement.scoreboardDisplay === ScoreboardDisplay.NonDojo) {
         return 0;
     }
 
@@ -281,29 +337,29 @@ export function getCurrentCount(
     }
 
     if (requirement.numberOfCohorts === 1 || requirement.numberOfCohorts === 0) {
-        return clampCount(cohort, requirement, progress.counts.ALL_COHORTS || 0, clamp);
+        return clampCount(cohort, requirement, progress.counts?.ALL_COHORTS || 0, clamp);
     }
 
     if (
         requirement.numberOfCohorts > 1 &&
-        Object.keys(progress.counts).length >= requirement.numberOfCohorts
+        Object.keys(progress.counts || {}).length >= requirement.numberOfCohorts
     ) {
-        if (progress.counts[cohort] !== undefined) {
+        if (progress.counts?.[cohort] !== undefined) {
             return clampCount(cohort, requirement, progress.counts[cohort], clamp);
         }
 
         return clampCount(
             cohort,
             requirement,
-            Math.max(...Object.values(progress.counts)),
+            Math.max(...Object.values(progress.counts || {})),
             clamp,
         );
     }
 
-    if (!requirement.counts[cohort]) {
+    if (requirement.counts?.[cohort] === undefined) {
         cohort = Object.keys(requirement.counts)[0];
     }
-    return clampCount(cohort, requirement, progress.counts[cohort] || 0, clamp);
+    return clampCount(cohort, requirement, progress.counts?.[cohort] || 0, clamp);
 }
 
 /**
@@ -312,7 +368,7 @@ export function getCurrentCount(
  * @param requirement The requirement to get the total count for.
  * @returns The total count for the given cohort and requirement.
  */
-export function getTotalCount(cohort: string, requirement: Requirement): number {
+export function getTotalCount(cohort: string, requirement: Requirement | CustomTask): number {
     return requirement.counts[cohort] || 0;
 }
 
@@ -337,6 +393,9 @@ export function getTotalTime(cohort: string, progress?: RequirementProgress): nu
 export function formatTime(value: number): string {
     const hours = Math.floor(value / 60);
     const minutes = Math.round(value % 60);
+    if (hours === 0) {
+        return `${minutes}m`;
+    }
     if (minutes === 0) {
         return `${hours}h`;
     }
@@ -353,13 +412,13 @@ export function formatTime(value: number): string {
  */
 export function isComplete(
     cohort: string,
-    requirement: Requirement,
+    requirement: Requirement | CustomTask,
     progress?: RequirementProgress,
 ): boolean {
-    return (
-        getCurrentCount(cohort, requirement, progress) >=
-        getTotalCount(cohort, requirement)
-    );
+    if (requirement.scoreboardDisplay === ScoreboardDisplay.NonDojo) {
+        return false;
+    }
+    return getCurrentCount(cohort, requirement, progress) >= getTotalCount(cohort, requirement);
 }
 
 /**
@@ -369,10 +428,14 @@ export function isComplete(
  * @returns True if the progress is expired.
  */
 export function isExpired(
-    requirement: Requirement,
+    requirement: Requirement | CustomTask,
     progress?: RequirementProgress,
 ): boolean {
     if (!progress) {
+        return false;
+    }
+
+    if (!isRequirement(requirement)) {
         return false;
     }
 
@@ -439,6 +502,22 @@ export function getTotalScore(cohort: string | undefined, requirements: Requirem
     }, 0);
 
     return totalScore;
+}
+
+/**
+ * Returns the Dojo points remaining uncompleted in the requirement.
+ * @param cohort The cohort to get the points for.
+ * @param requirement The requirement to get the points for.
+ * @param progress The progress to get the points for.
+ */
+export function getRemainingScore(
+    cohort: string,
+    requirement: Requirement,
+    progress?: RequirementProgress,
+): number {
+    const total = getTotalScore(cohort, [requirement]);
+    const current = getCurrentScore(cohort, requirement, progress);
+    return total - current;
 }
 
 /**
@@ -514,6 +593,24 @@ export function getTotalCategoryScore(
 }
 
 /**
+ * Returns the percentage of Dojo points remaining uncompleted in the category.
+ * @param user The user to get the Dojo points for.
+ * @param cohort The cohort to get the Dojo points for.
+ * @param category The category to get the Dojo points for.
+ * @param requirements The list of requirements to get the Dojo points for.
+ */
+export function getRemainingCategoryScorePercent(
+    user: User,
+    cohort: string,
+    category: string,
+    requirements: Requirement[],
+): number {
+    const total = getTotalCategoryScore(cohort, category, requirements);
+    const score = getCategoryScore(user, cohort, category, requirements);
+    return (total - score) / total;
+}
+
+/**
  * Returns the unit score of the requirement for the given cohort.
  * @param cohort The cohort to get the unit score for.
  * @param requirement The requirement to get the unit score for.
@@ -537,9 +634,13 @@ export function getUnitScore(cohort: string, requirement: Requirement): number {
 export function isBlocked(
     cohort: string,
     user: User,
-    requirement: Requirement,
+    requirement: Requirement | CustomTask,
     requirements: Requirement[],
 ): { isBlocked: boolean; reason?: string } {
+    if (!isRequirement(requirement)) {
+        return { isBlocked: false };
+    }
+
     if (!requirement.blockers || requirement.blockers.length === 0) {
         return { isBlocked: false };
     }

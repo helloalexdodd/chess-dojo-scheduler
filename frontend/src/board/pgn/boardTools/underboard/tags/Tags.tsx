@@ -1,9 +1,10 @@
 import { isValidDate, stripTagValue } from '@/api/gameApi';
+import { Link } from '@/components/navigation/Link';
 import { Game, MastersCohort } from '@/database/game';
 import Avatar from '@/profile/Avatar';
 import CohortIcon from '@/scoreboard/CohortIcon';
 import { EventType, PgnDate, PgnTime, TimeControl } from '@jackstenglein/chess';
-import { Alert, Box, Link, Snackbar, Stack, Typography } from '@mui/material';
+import { Alert, Box, Snackbar, Stack, Typography } from '@mui/material';
 import {
     DataGridPro,
     GridCellParams,
@@ -52,9 +53,7 @@ const columns: GridColDef<TagRow>[] = [
                             size={28}
                         />
                         <Link href={`/profile/${params.row.value.username}`}>
-                            <Typography variant='body2'>
-                                {params.row.value.displayName}
-                            </Typography>
+                            <Typography variant='body2'>{params.row.value.displayName}</Typography>
                         </Link>
                         <CohortIcon cohort={params.row.value.previousCohort} size={20} />
                     </Stack>
@@ -64,13 +63,9 @@ const columns: GridColDef<TagRow>[] = [
             if (params.row.name === 'Cohort' && typeof params.row.value === 'string') {
                 return (
                     <Link
-                        href={`/games/?type=cohort&cohort=${encodeURIComponent(
-                            params.row.value,
-                        )}`}
+                        href={`/games/?type=cohort&cohort=${encodeURIComponent(params.row.value)}`}
                     >
-                        {params.row.value === MastersCohort
-                            ? 'Masters DB'
-                            : params.row.value}
+                        {params.row.value === MastersCohort ? 'Masters DB' : params.row.value}
                     </Link>
                 );
             }
@@ -229,10 +224,7 @@ const Tags: React.FC<TagsProps> = ({ game, allowEdits }) => {
                     if (!allowEdits) {
                         return false;
                     }
-                    if (
-                        params.row.name === 'Uploaded By' ||
-                        params.row.name === 'Cohort'
-                    ) {
+                    if (params.row.name === 'Uploaded By' || params.row.name === 'Cohort') {
                         return false;
                     }
                     return !uneditableTags.includes(params.row.name);
@@ -241,10 +233,7 @@ const Tags: React.FC<TagsProps> = ({ game, allowEdits }) => {
                     const value = newRow.value as string;
                     const name = newRow.name;
 
-                    if (
-                        ['White', 'Date', 'Black'].includes(name) &&
-                        stripTagValue(value) === ''
-                    ) {
+                    if (['White', 'Date', 'Black'].includes(name) && stripTagValue(value) === '') {
                         setError(`${name} tag is required to publish`);
                         return oldRow;
                     }

@@ -1,22 +1,61 @@
 import { useReconcile } from '@/board/Board';
+import { getStandardNag } from '@/board/pgn/Nag';
 import { useChess } from '@/board/pgn/PgnBoard';
 import { useLightMode } from '@/style/useLightMode';
 import { Chess, Event, EventType, Move } from '@jackstenglein/chess';
 import { clockToSeconds } from '@jackstenglein/chess-dojo-common/src/pgn/clock';
 import { Edit } from '@mui/icons-material';
-import { Box, CardContent, IconButton, Stack, Tooltip, Typography } from '@mui/material';
-import { pink } from '@mui/material/colors';
+import {
+    Box,
+    CardContent,
+    Checkbox,
+    FormControlLabel,
+    IconButton,
+    Stack,
+    Tooltip,
+    Typography,
+} from '@mui/material';
+import { orange, pink } from '@mui/material/colors';
 import { useEffect, useMemo, useState } from 'react';
 import { AxisOptions, Chart, Datum as ChartDatum, Series } from 'react-charts';
+import { useLocalStorage } from 'usehooks-ts';
 import { TimeControlEditor } from '../tags/TimeControlEditor';
 import ClockEditor from './ClockEditor';
 import { TimeControlDescription } from './TimeControlDescription';
 
+const showEvalInClockGraph = {
+    key: 'showEvalInClockGraph',
+    default: true,
+} as const;
+
+const nagEvals: Record<string, number> = {
+    $10: 0, // equal
+    $13: 0, // unclear
+    $14: 1, // white is slightly better
+    $15: -1, // black is slightly better
+    $16: 2, // white is better
+    $17: -2, // black is better
+    $18: 3, // white is winning
+    $19: -3, // black is winning
+};
+
+function getEvalValue(nags?: string[]): number | undefined {
+    for (const nag of nags ?? []) {
+        const n = getStandardNag(nag);
+        if (nagEvals[n] !== undefined) {
+            return nagEvals[n];
+        }
+    }
+    return undefined;
+}
+
 interface Datum {
+    secondaryAxisId?: string;
     label?: string;
     moveNumber: number;
     seconds: number;
     move: Move | null;
+    eval?: number;
 }
 
 const primaryAxis: AxisOptions<Datum> = {
@@ -30,11 +69,46 @@ const primaryAxis: AxisOptions<Datum> = {
 
 const secondaryAxes: AxisOptions<Datum>[] = [
     {
-        getValue: (datum) => datum.seconds,
-        min: 0,
+        getValue: (datum: Datum) => datum.seconds as unknown as Date,
+        min: 0 as unknown as Date,
         formatters: {
             scale: formatTime,
         },
+        tickCount: 6,
+        // This is necessary to make the tick marks line up with the eval, but requires the gross
+        // type assertions.
+        scaleType: 'time',
+    } as unknown as AxisOptions<Datum>,
+    {
+        id: 'eval',
+        getValue: (datum) => datum.eval,
+        scaleType: 'linear',
+        elementType: 'line',
+        min: -3,
+        max: 3,
+        formatters: {
+            scale: (value: number) => {
+                switch (value) {
+                    case -3:
+                        return '−+';
+                    case -2:
+                        return '∓';
+                    case -1:
+                        return '⩱';
+                    case 0:
+                        return '= / ∞';
+                    case 1:
+                        return '⩲';
+                    case 2:
+                        return '±';
+                    case 3:
+                        return '+−';
+                    default:
+                        return `${value}`;
+                }
+            },
+        },
+        tickCount: 6,
     },
 ];
 
@@ -49,7 +123,11 @@ const barAxis: AxisOptions<Datum> = {
 
 const secondaryBarAxis: AxisOptions<Datum>[] = [
     {
-        ...secondaryAxes[0],
+        getValue: (datum: Datum) => datum.seconds,
+        min: 0,
+        formatters: {
+            scale: formatTime,
+        },
         position: 'bottom',
     },
 ];
@@ -146,6 +224,13 @@ function getSeriesStyle(series: Series<Datum>, light: boolean) {
         return { fill: 'white', stroke: 'white' };
     }
 
+    if (series.label === 'Eval') {
+        if (light) {
+            return { fill: orange[300], stroke: orange[300] };
+        }
+        return { fill: pink[200], stroke: pink[200] };
+    }
+
     if (light) {
         return { fill: '#212121', stroke: '#212121' };
     }
@@ -176,6 +261,10 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
     const [forceRender, setForceRender] = useState(0);
     const reconcile = useReconcile();
     const [showTimeControlEditor, setShowTimeControlEditor] = useState(false);
+    const [showEval, setShowEval] = useLocalStorage<boolean>(
+        showEvalInClockGraph.key,
+        showEvalInClockGraph.default,
+    );
 
     const timeControls = chess?.header().tags.TimeControl?.items;
 
@@ -213,6 +302,7 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
 
         let timeControl = timeControls?.[0] ?? {};
         let timeControlIdx = 0;
+        let pliesSinceTimeControl = 0;
 
         const whiteClockDisplay: Datum[] = [
             {
@@ -229,6 +319,15 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
             },
         ];
 
+        const evalData: Datum[] = [
+            {
+                moveNumber: 0,
+                move: null,
+                eval: 0,
+                seconds: 0,
+            },
+        ];
+
         const whiteTimePerMove: Datum[] = [];
         const blackTimePerMove: Datum[] = [];
 
@@ -240,13 +339,15 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
             const bonus = Math.max(0, timeControl.increment || timeControl.delay || 0);
             let additionalTime = 0;
 
-            if (
-                timeControl.moves &&
-                timeControlIdx + 1 < (timeControls?.length ?? 0) &&
-                i / 2 === timeControl.moves - 1
-            ) {
-                timeControl = timeControls?.[++timeControlIdx] || {};
+            if (timeControl.moves && pliesSinceTimeControl / 2 === timeControl.moves - 1) {
+                if (timeControlIdx + 1 < (timeControls?.length ?? 0)) {
+                    timeControlIdx++;
+                }
+                timeControl = timeControls?.[timeControlIdx] || {};
                 additionalTime = Math.max(0, timeControl.seconds || 0);
+                pliesSinceTimeControl = 0;
+            } else {
+                pliesSinceTimeControl += 2;
             }
 
             const firstTime = clockToSeconds(moves[i]?.commentDiag?.clk);
@@ -267,6 +368,17 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
                         ? secondTime
                         : blackClockDisplay[blackClockDisplay.length - 1].seconds,
                 move: moves[i + 1] ? moves[i + 1] : moves[i],
+            });
+
+            evalData.push({
+                moveNumber: i / 2 + 1,
+                move: moves[i + 1] ?? moves[i],
+                eval:
+                    getEvalValue(moves[i + 1]?.nags) ??
+                    getEvalValue(moves[i]?.nags) ??
+                    evalData.at(-1)?.eval ??
+                    0,
+                seconds: 0,
             });
 
             whiteTimePerMove.push({
@@ -331,6 +443,7 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
             remainingPerMove: [
                 { label: 'White', data: whiteClockDisplay },
                 { label: 'Black', data: blackClockDisplay },
+                { label: 'Eval', data: evalData, secondaryAxisId: 'eval' },
             ],
             usedPerMove: [
                 { label: 'White', data: whiteTimePerMove.reverse() },
@@ -401,15 +514,40 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
                     <Box width={1} height={300}>
                         <Chart
                             options={{
-                                data: data.remainingPerMove,
+                                data: showEval
+                                    ? data.remainingPerMove
+                                    : data.remainingPerMove.slice(0, -1),
                                 primaryAxis,
-                                secondaryAxes,
+                                secondaryAxes: showEval
+                                    ? secondaryAxes
+                                    : secondaryAxes.slice(0, -1),
                                 dark: !light,
                                 onClickDatum,
                                 getSeriesStyle: (series) => getSeriesStyle(series, light),
+                                tooltip: {
+                                    showDatumInTooltip: (datum) =>
+                                        showEval || datum.secondaryAxisId !== 'eval',
+                                },
                             }}
                         />
                     </Box>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showEval}
+                                onChange={(e) => setShowEval(e.target.checked)}
+                                sx={{ '& .MuiSvgIcon-root': { fontSize: 16 } }}
+                            />
+                        }
+                        label='Overlay evaluation'
+                        sx={{ alignSelf: 'start' }}
+                        slotProps={{
+                            typography: {
+                                color: 'text.secondary',
+                                fontSize: '14px',
+                            },
+                        }}
+                    />
                 </Stack>
 
                 <Stack spacing={0.5} alignItems='center'>
@@ -434,9 +572,7 @@ const ClockUsage: React.FC<ClockUsageProps> = ({ showEditor }) => {
                     </Box>
                 </Stack>
 
-                {showEditor && (
-                    <ClockEditor setShowTimeControlEditor={setShowTimeControlEditor} />
-                )}
+                {showEditor && <ClockEditor setShowTimeControlEditor={setShowTimeControlEditor} />}
 
                 {showTimeControlEditor && (
                     <TimeControlEditor

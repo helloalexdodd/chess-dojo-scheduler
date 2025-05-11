@@ -4,13 +4,8 @@ import {
 } from '@jackstenglein/chess-dojo-common/src/database/game';
 import { useEffect, useMemo } from 'react';
 import { GameResult } from '../../database/game';
-import {
-    ChesscomGame,
-    ChesscomGameResult,
-    ChesscomTimeClass,
-    useChesscomGames,
-} from './chesscom';
-import { LichessGame, LichessPerfType, useLichessUserGames } from './lichess';
+import { ChesscomGame, ChesscomGameResult, ChesscomTimeClass, useChesscomGames } from './chesscom';
+import { LichessGame, LichessPerfType, LichessTimeClass, useLichessUserGames } from './lichess';
 
 /** A unified interface for online games from any source. */
 export interface OnlineGame {
@@ -103,12 +98,11 @@ export interface OnlineGameTimeControl {
 }
 
 export enum OnlineGameTimeClass {
-    UltraBullet = 'ultraBullet',
     Bullet = 'bullet',
     Blitz = 'blitz',
     Rapid = 'rapid',
     Classical = 'classical',
-    Correspondence = 'correspondence',
+    Daily = 'daily',
 }
 
 /**
@@ -118,10 +112,7 @@ export enum OnlineGameTimeClass {
  * @param skipVariant Whether to return null for variants. Defaults to true.
  * @returns The OnlineGame version of the ChesscomGame.
  */
-export function chesscomOnlineGame(
-    game: ChesscomGame,
-    skipVariant = true,
-): OnlineGame | null {
+export function chesscomOnlineGame(game: ChesscomGame, skipVariant = true): OnlineGame | null {
     if (skipVariant && game.rules !== 'chess') {
         return null;
     }
@@ -161,7 +152,7 @@ export function chesscomOnlineGame(
  * @param game The game to get the result/reason for.
  * @returns An array containing the result and reason.
  */
-function chesscomGameResult(game: ChesscomGame): [GameResult, OnlineGameResultReason] {
+export function chesscomGameResult(game: ChesscomGame): [GameResult, OnlineGameResultReason] {
     if (game.white.result === ChesscomGameResult.Win) {
         return [GameResult.White, chesscomGameResultReason(game.black.result)];
     }
@@ -201,18 +192,34 @@ function chesscomGameResultReason(reason: ChesscomGameResult): OnlineGameResultR
  * Convers the given time class to an OnlineGameTimeClass, if it isn't one already.
  * @param tc The time class to convert.
  */
-function getTimeClass(tc: ChesscomTimeClass | OnlineGameTimeClass): OnlineGameTimeClass {
+export function getTimeClass(
+    tc: ChesscomTimeClass | LichessTimeClass,
+    timeControl?: string,
+): OnlineGameTimeClass {
     switch (tc) {
-        case ChesscomTimeClass.Rapid:
-            return OnlineGameTimeClass.Rapid;
-        case ChesscomTimeClass.Blitz:
-            return OnlineGameTimeClass.Blitz;
+        case LichessTimeClass.UltraBullet:
+        case LichessTimeClass.Bullet:
         case ChesscomTimeClass.Bullet:
             return OnlineGameTimeClass.Bullet;
+
+        case LichessTimeClass.Blitz:
+        case ChesscomTimeClass.Blitz:
+            return OnlineGameTimeClass.Blitz;
+
+        case LichessTimeClass.Rapid:
+        case ChesscomTimeClass.Rapid:
+            if (timeControl && parseInt(timeControl.split('+')[0]) > 30 * 60) {
+                return OnlineGameTimeClass.Classical;
+            }
+            return OnlineGameTimeClass.Rapid;
+
+        case LichessTimeClass.Classical:
+            return OnlineGameTimeClass.Classical;
+
         case ChesscomTimeClass.Daily:
-            return OnlineGameTimeClass.Correspondence;
+        case LichessTimeClass.Correspondence:
+            return OnlineGameTimeClass.Daily;
     }
-    return tc;
 }
 
 /**
@@ -222,10 +229,7 @@ function getTimeClass(tc: ChesscomTimeClass | OnlineGameTimeClass): OnlineGameTi
  * @param skipVariant Whether to return null for variants. Defaults to true.
  * @returns The OnlineGame version of the LichessGame.
  */
-export function lichessOnlineGame(
-    game: LichessGame,
-    skipVariant = true,
-): OnlineGame | null {
+export function lichessOnlineGame(game: LichessGame, skipVariant = true): OnlineGame | null {
     if (
         skipVariant &&
         game.variant !== OnlineGameVariant.Standard &&
@@ -267,7 +271,7 @@ export function lichessOnlineGame(
             initialSeconds: game.clock.initial,
             incrementSeconds: game.clock.increment,
         },
-        timeClass: game.speed,
+        timeClass: getTimeClass(game.speed),
     };
 }
 
@@ -276,7 +280,7 @@ export function lichessOnlineGame(
  * @param game The game to get the result/reason for.
  * @returns An array containing the result and reason.
  */
-function lichessGameResult(game: LichessGame): [GameResult, OnlineGameResultReason] {
+export function lichessGameResult(game: LichessGame): [GameResult, OnlineGameResultReason] {
     let result = GameResult.Draw;
     if (game.winner === 'white') {
         result = GameResult.White;

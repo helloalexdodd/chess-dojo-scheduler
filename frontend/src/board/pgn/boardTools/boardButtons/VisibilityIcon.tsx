@@ -1,7 +1,8 @@
 import { Game } from '@/database/game';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { IconButton, Tooltip } from '@mui/material';
-import { DefaultUnderboardTab, UnderboardApi } from '../underboard/Underboard';
+import { UnderboardApi } from '../underboard/Underboard';
+import { DefaultUnderboardTab } from '../underboard/underboardTabs';
 
 export const VisibilityIcon = ({
     game,
@@ -19,9 +20,7 @@ export const VisibilityIcon = ({
             }
         >
             <IconButton
-                onClick={() =>
-                    underboardRef.current?.switchTab(DefaultUnderboardTab.Settings)
-                }
+                onClick={() => underboardRef.current?.switchTab(DefaultUnderboardTab.Settings)}
             >
                 {game.unlisted ? (
                     <VisibilityOff data-cy='unlisted-icon' color='error' />

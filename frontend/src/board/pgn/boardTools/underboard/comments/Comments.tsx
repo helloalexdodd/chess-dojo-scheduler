@@ -16,6 +16,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { useLocalStorage } from 'usehooks-ts';
 import Comment from './Comment';
 import CommentEditor, { CommentEditorProps } from './CommentEditor';
+import { isSuggestedVariation } from './suggestVariation';
 
 const CommentViewKey = 'COMMENT_VIEW';
 const CommentSortByKey = 'COMMENT_SORT_BY';
@@ -51,11 +52,7 @@ type CommentsProps = CommentEditorProps & {
     isReadonly?: boolean;
 };
 
-const Comments: React.FC<CommentsProps> = ({
-    focusEditor,
-    setFocusEditor,
-    isReadonly,
-}) => {
+const Comments: React.FC<CommentsProps> = ({ focusEditor, setFocusEditor, isReadonly }) => {
     const [view, setView] = useLocalStorage(CommentViewKey, View.FullGame);
     const [sortBy, setSortBy] = useLocalStorage(CommentSortByKey, SortBy.Newest);
     const { chess } = useChess();
@@ -101,9 +98,7 @@ const Comments: React.FC<CommentsProps> = ({
                             size='small'
                         >
                             <MenuItem value={View.FullGame}>Entire Game</MenuItem>
-                            <MenuItem value={View.CurrentMove}>
-                                Current Position Only
-                            </MenuItem>
+                            <MenuItem value={View.CurrentMove}>Current Position Only</MenuItem>
                         </TextField>
 
                         <TextField
@@ -133,10 +128,7 @@ const Comments: React.FC<CommentsProps> = ({
                 </Stack>
 
                 {!isReadonly && (
-                    <CommentEditor
-                        focusEditor={focusEditor}
-                        setFocusEditor={setFocusEditor}
-                    />
+                    <CommentEditor focusEditor={focusEditor} setFocusEditor={setFocusEditor} />
                 )}
             </Stack>
         </CardContent>
@@ -153,12 +145,21 @@ function getFenSections(game: Game, chess: Chess, view: View, sort: SortBy) {
     const fenSections: PositionCommentSection[] = [];
 
     if (view === View.CurrentMove) {
-        const comments = getCommentsForFen(
-            game,
-            chess.normalizedFen(),
-            chess.currentMove(),
-            sort,
-        );
+        const comments = getCommentsForFen(game, chess.normalizedFen(), chess.currentMove(), sort);
+        if (isSuggestedVariation(chess.currentMove())) {
+            let root = chess.currentMove();
+            while (isSuggestedVariation(root?.previous)) {
+                root = root?.previous ?? null;
+            }
+            const commentId = root?.commentDiag?.dojoComment?.substring(
+                root.commentDiag?.dojoComment?.lastIndexOf(',') + 1,
+            );
+            const comment =
+                game.positionComments[chess.normalizedFen(root?.previous)]?.[commentId || ''];
+            if (comment) {
+                fenSections.push({ move: root?.previous || null, comments: [comment] });
+            }
+        }
         fenSections.push({ move: chess.currentMove(), comments });
         return fenSections;
     }
@@ -239,7 +240,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ isReadonly, section }) 
                 <Divider sx={{ width: 1 }} />
             </Stack>
             {section.comments.map((c) => (
-                <Comment isReadonly={isReadonly} key={c.id} comment={c} />
+                <Comment isReadonly={isReadonly} key={c.id} comment={c} move={move} />
             ))}
             {section.comments.length === 0 && <Typography>No comments</Typography>}
         </Stack>

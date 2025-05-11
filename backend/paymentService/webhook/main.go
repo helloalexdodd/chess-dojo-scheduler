@@ -13,10 +13,12 @@ import (
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/api/errors"
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/api/log"
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/database"
+	"github.com/jackstenglein/chess-dojo-scheduler/backend/discord"
+	"github.com/jackstenglein/chess-dojo-scheduler/backend/meta"
 	payment "github.com/jackstenglein/chess-dojo-scheduler/backend/paymentService"
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/paymentService/secrets"
-	stripe "github.com/stripe/stripe-go/v76"
-	"github.com/stripe/stripe-go/v76/webhook"
+	stripe "github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/webhook"
 )
 
 var repository = database.DynamoDB
@@ -148,10 +150,18 @@ func handleSubscriptionPurchase(checkoutSession *stripe.CheckoutSession) api.Res
 		SubscriptionStatus: stripe.String(database.SubscriptionStatus_Subscribed),
 	}
 
-	_, err := repository.UpdateUser(checkoutSession.ClientReferenceID, &update)
+	user, err := repository.UpdateUser(checkoutSession.ClientReferenceID, &update)
 	if err != nil {
 		return api.Failure(err)
 	}
+	if err := discord.SetCohortRole(user); err != nil {
+		log.Errorf("Failed to set Discord roles: %v", err)
+	}
+
+	if err := meta.PurchaseEvent(checkoutSession); err != nil {
+		log.Errorf("Failed to log Meta event: %v", err)
+	}
+
 	return api.Success(nil)
 }
 
@@ -275,9 +285,12 @@ func handleSubscriptionDeletion(event *stripe.Event) api.Response {
 		SubscriptionStatus: stripe.String(database.SubscriptionStatus_FreeTier),
 	}
 
-	_, err := repository.UpdateUser(username, &update)
+	user, err := repository.UpdateUser(username, &update)
 	if err != nil {
 		return api.Failure(err)
+	}
+	if err := discord.SetCohortRole(user); err != nil {
+		log.Errorf("Failed to set Discord roles: %v", err)
 	}
 	return api.Success(nil)
 }

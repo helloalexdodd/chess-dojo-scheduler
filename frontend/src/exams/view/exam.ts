@@ -1,15 +1,10 @@
+import { Requirement } from '@/database/requirement';
 import { Chess, Move } from '@jackstenglein/chess';
 import { getCohortRangeInt } from '@jackstenglein/chess-dojo-common/src/database/cohort';
-import {
-    Exam,
-    ExamAnswer,
-    ExamType,
-} from '@jackstenglein/chess-dojo-common/src/database/exam';
+import { Exam, ExamAnswer, ExamType } from '@jackstenglein/chess-dojo-common/src/database/exam';
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import { useApi } from '../../api/Api';
 import { useRequest } from '../../api/Request';
-import { Requirement } from '../../database/requirement';
 import {
     ALL_COHORTS,
     User,
@@ -23,8 +18,7 @@ import {
  * params. The page is expected to have type and id params.
  * @returns The type, id, request, exam and answer.
  */
-export function useExam() {
-    const { type, id } = useParams<{ type: ExamType; id: string }>();
+export function useExam({ type, id }: { type: ExamType; id: string }) {
     const api = useApi();
     const request = useRequest<{ exam: Exam; answer?: ExamAnswer }>();
 
@@ -217,10 +211,7 @@ export interface TacticsRatingComponent {
  * and the Puzzle Rush requirements.
  * @returns The user's tactics rating.
  */
-export function calculateTacticsRating(
-    user: User,
-    requirements: Requirement[],
-): TacticsRating {
+export function calculateTacticsRating(user: User, requirements: Requirement[]): TacticsRating {
     const rating: TacticsRating = {
         overall: 0,
         components: [],
@@ -257,8 +248,7 @@ export function calculateTacticsRating(
     const countedComponents = rating.components.filter((c) => c.rating >= 0);
     if (countedComponents.length > 0) {
         rating.overall =
-            countedComponents.reduce((sum, c) => sum + c.rating, 0) /
-            countedComponents.length;
+            countedComponents.reduce((sum, c) => sum + c.rating, 0) / countedComponents.length;
     }
 
     return rating;
@@ -280,14 +270,12 @@ function getTaskRating(user: User, req?: Requirement): number {
         return -1;
     }
 
-    const count = progress.counts[ALL_COHORTS];
+    const count = progress.counts?.[ALL_COHORTS];
     if (!count) {
         return -1;
     }
 
-    const reqCounts = Object.entries(req.counts).sort((lhs, rhs) =>
-        compareCohorts(lhs[0], rhs[0]),
-    );
+    const reqCounts = Object.entries(req.counts).sort((lhs, rhs) => compareCohorts(lhs[0], rhs[0]));
 
     for (let i = 0; i < reqCounts.length; i++) {
         const [cohort, reqCount] = reqCounts[i];
@@ -299,8 +287,7 @@ function getTaskRating(user: User, req?: Requirement): number {
             const minReqCount = i ? reqCounts[i - 1][1] : req.startCount;
 
             const rating =
-                ((maxCohort - minCohort) / (reqCount - minReqCount)) *
-                    (count - minReqCount) +
+                ((maxCohort - minCohort) / (reqCount - minReqCount)) * (count - minReqCount) +
                 minCohort;
             return rating;
         }
@@ -315,9 +302,7 @@ function getTaskRating(user: User, req?: Requirement): number {
  * @returns The max possible rating for the requirement.
  */
 function getTaskMaxRating(req: Requirement): number {
-    const reqCounts = Object.entries(req.counts).sort((lhs, rhs) =>
-        compareCohorts(lhs[0], rhs[0]),
-    );
+    const reqCounts = Object.entries(req.counts).sort((lhs, rhs) => compareCohorts(lhs[0], rhs[0]));
 
     for (let i = reqCounts.length - 1; i > 0; i--) {
         if (reqCounts[i][1] !== reqCounts[i - 1][1]) {
@@ -352,8 +337,7 @@ function getExamRating(user: User, examType: ExamType): TacticsRatingComponent[]
     if (isCohortLess(user.dojoCohort, '2100-2200')) {
         let rating = -1;
         if (countedExams.length > 0) {
-            rating =
-                countedExams.reduce((sum, e) => sum + e.rating, 0) / countedExams.length;
+            rating = countedExams.reduce((sum, e) => sum + e.rating, 0) / countedExams.length;
         }
 
         return [

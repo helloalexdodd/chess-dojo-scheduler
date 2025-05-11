@@ -1,9 +1,9 @@
 import { Request, RequestStatus, useRequest } from '@/api/Request';
 import { ListGamesResponse } from '@/api/gameApi';
-import { GameInfo } from '@/database/game';
+import { GameInfo, GameKey } from '@/database/game';
 import { AxiosResponse } from 'axios';
-import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Dispatch, SetStateAction, useCallback, useEffect, useState } from 'react';
+import { useNextSearchParams } from './useNextSearchParams';
 
 export type SearchFunc = (startKey: string) => Promise<AxiosResponse<ListGamesResponse>>;
 
@@ -16,9 +16,11 @@ export interface PaginationResult {
     request: Request;
     rowCount: number;
     hasMore: boolean;
+    setGames: Dispatch<SetStateAction<GameInfo[]>>;
     setPage: (newPage: number) => void;
     setPageSize: (newPageSize: number) => void;
     onSearch: (searchFunc: SearchFunc) => void;
+    onDelete: (keys: GameKey[]) => void;
 }
 
 export function usePagination(
@@ -30,16 +32,14 @@ export function usePagination(
     const request = useRequest();
     const reset = request.reset;
 
-    const [searchParams, setSearchParams] = useSearchParams({
+    const { searchParams, updateSearchParams } = useNextSearchParams({
         page: `${initialPage}`,
         pageSize: `${initialPageSize}`,
     });
 
     const [games, setGames] = useState<GameInfo[]>([]);
     const [startKey, setStartKey] = useState<string | undefined>('');
-    const [searchFunc, setSearchFunc] = useState<SearchFunc | null>(
-        () => initialSearchFunc,
-    );
+    const [searchFunc, setSearchFunc] = useState<SearchFunc | null>(() => initialSearchFunc);
 
     const page = parseInt(searchParams.get('page') || `${initialPage}`);
     const pageSize = parseInt(searchParams.get('pageSize') || `${initialPageSize}`);
@@ -47,29 +47,17 @@ export function usePagination(
     const onChangePage = useCallback(
         (newPage: number) => {
             reset();
-            setSearchParams((prev) => {
-                prev.set('page', `${newPage}`);
-                return prev;
-            });
+            updateSearchParams({ page: `${newPage}` });
         },
-        [reset, setSearchParams],
+        [reset, updateSearchParams],
     );
 
     const onChangePageSize = useCallback(
         (newPageSize: number) => {
-            setSearchParams((prev) => {
-                const oldPageSize = parseInt(
-                    prev.get('pageSize') || `${initialPageSize}`,
-                );
-                const oldPage = parseInt(prev.get('page') || `${initialPage}`);
-                const newPage = Math.floor((oldPage * oldPageSize) / newPageSize);
-
-                prev.set('page', `${newPage}`);
-                prev.set('pageSize', `${newPageSize}`);
-                return prev;
-            });
+            const newPage = Math.floor((page * pageSize) / newPageSize);
+            updateSearchParams({ page: `${newPage}`, pageSize: `${newPageSize}` });
         },
-        [setSearchParams, initialPage, initialPageSize],
+        [updateSearchParams, page, pageSize],
     );
 
     const onSearch = useCallback(
@@ -80,6 +68,18 @@ export function usePagination(
             setSearchFunc(() => searchFunc);
         },
         [reset, setGames, setStartKey, setSearchFunc],
+    );
+
+    const onDelete = useCallback(
+        (keys: GameKey[]) => {
+            setGames((gs) =>
+                gs.filter((g) => {
+                    const key = keys.find((key) => key.cohort === g.cohort && key.id === g.id);
+                    return !key;
+                }),
+            );
+        },
+        [setGames],
     );
 
     useEffect(() => {
@@ -130,8 +130,10 @@ export function usePagination(
         request,
         rowCount,
         hasMore: startKey !== undefined,
+        setGames,
         setPage: onChangePage,
         setPageSize: onChangePageSize,
         onSearch,
+        onDelete,
     };
 }

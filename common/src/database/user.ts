@@ -20,6 +20,7 @@ export interface User {
     username: string;
     displayName: string;
     discordUsername: string;
+    discordId?: string;
     dojoCohort: string;
     bio: string;
     coachBio?: string;
@@ -68,7 +69,7 @@ export interface User {
 
     referralSource: string;
 
-    notificationSettings: UserNotificationSettings;
+    notificationSettings?: UserNotificationSettings;
 
     totalDojoScore: number;
 
@@ -103,18 +104,23 @@ export interface UserNotificationSettings {
 export interface DiscordNotificationSettings {
     disableMeetingBooking: boolean;
     disableMeetingCancellation: boolean;
+    disableCalendarInvite: boolean;
+    disableRoundRobinStart: boolean;
 }
 
 export interface EmailNotificationSettings {
     disableNewsletter: boolean;
     disableInactiveWarning: boolean;
+    disableRoundRobinStart: boolean;
 }
 
 export interface SiteNotificationSettings {
     disableGameComment: boolean;
+    disableGameCommentReplies: boolean;
     disableNewFollower: boolean;
     disableNewsfeedComment: boolean;
     disableNewsfeedReaction: boolean;
+    disableCalendarInvite: boolean;
 }
 
 export type MinutesSpentKey =
@@ -166,4 +172,23 @@ export enum TimeFormat {
     Default = '',
     TwelveHour = '12',
     TwentyFourHour = '24',
+}
+
+/**
+ * Gets the search key for the given user. The search key has its own
+ * index in the Dynamo table and allows for quickly finding users based on a
+ * given field.
+ * @param user The user to get the search key for.
+ */
+export function getSearchKey(user: User): string {
+    let searchKey = `display:${user.displayName}`;
+    if (user.discordUsername) {
+        searchKey += `_discord:${user.discordUsername}`;
+    }
+    for (const [system, rating] of Object.entries(user.ratings)) {
+        if (rating.username && !rating.hideUsername) {
+            searchKey += `_${system}:${rating.username}`;
+        }
+    }
+    return searchKey.toLowerCase();
 }

@@ -4,6 +4,7 @@ import {
     BatchWriteItemCommand,
     DynamoDBClient,
     GetItemCommand,
+    PutItemCommand,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { Chess } from '@jackstenglein/chess';
@@ -15,14 +16,12 @@ import {
 import {
     CreateGameRequest,
     CreateGameSchema,
+    GameImportTypes,
     GameOrientation,
     GameOrientations,
 } from '@jackstenglein/chess-dojo-common/src/database/game';
 import { User } from '@jackstenglein/chess-dojo-common/src/database/user';
-import {
-    clockToSeconds,
-    secondsToClock,
-} from '@jackstenglein/chess-dojo-common/src/pgn/clock';
+import { cleanupPgn, splitPgns } from '@jackstenglein/chess-dojo-common/src/pgn/pgn';
 import {
     APIGatewayProxyEventV2,
     APIGatewayProxyHandlerV2,
@@ -37,14 +36,8 @@ import {
 } from 'chess-dojo-directory-service/api';
 import { v4 as uuidv4 } from 'uuid';
 import { getChesscomAnalysis, getChesscomGame } from './chesscom';
-import { getLichessChapter, getLichessGame, getLichessStudy, splitPgns } from './lichess';
-import {
-    Game,
-    GameImportHeaders,
-    GameImportType,
-    isValidDate,
-    isValidResult,
-} from './types';
+import { getLichessChapter, getLichessGame, getLichessStudy } from './lichess';
+import { Game, GameImportHeaders, isMissingData, isValidDate, isValidResult } from './types';
 
 export const dynamo = new DynamoDBClient({ region: 'us-east-1' });
 const usersTable = process.env.stage + '-users';
@@ -98,9 +91,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         const games = getGames(
             user,
             pgnTexts,
-            request.directory
-                ? `${request.directory.owner}/${request.directory.id}`
-                : undefined,
+            request.directory ? `${request.directory.owner}/${request.directory.id}` : undefined,
+            request.publish,
+            request.orientation,
         );
         if (games.length === 0) {
             throw new ApiError({
@@ -112,11 +105,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         const updated = await batchPutGames(games);
 
         if (request.directory) {
-            await addGamesToDirectory(
-                request.directory.owner,
-                request.directory.id,
-                games,
-            );
+            await addGamesToDirectory(request.directory.owner, request.directory.id, games);
+        }
+
+        if (request.publish) {
+            for (const game of games) {
+                await createTimelineEntry(game);
+            }
         }
 
         if (games.length === 1) {
@@ -177,148 +172,38 @@ export function getUserInfo(event: any): { username: string; email: string } {
  */
 export async function getPgnTexts(request: CreateGameRequest): Promise<string[]> {
     switch (request.type) {
-        case GameImportType.LichessChapter:
+        case GameImportTypes.lichessChapter:
             return [await getLichessChapter(request.url)];
-        case GameImportType.LichessGame:
-            return request.pgnText
-                ? [request.pgnText]
-                : [await getLichessGame(request.url)];
-        case GameImportType.LichessStudy:
+        case GameImportTypes.lichessGame:
+            return request.pgnText ? [request.pgnText] : [await getLichessGame(request.url)];
+        case GameImportTypes.lichessStudy:
             return await getLichessStudy(request.url);
-        case GameImportType.ChesscomGame:
-            return request.pgnText
-                ? [request.pgnText]
-                : [await getChesscomGame(request.url)];
-        case GameImportType.ChesscomAnalysis:
+        case GameImportTypes.chesscomGame:
+            return request.pgnText ? [request.pgnText] : [await getChesscomGame(request.url)];
+        case GameImportTypes.chesscomAnalysis:
             return [await getChesscomAnalysis(request.url)];
 
-        case GameImportType.Editor:
-        case GameImportType.StartingPosition:
-        case GameImportType.Fen:
+        case GameImportTypes.editor:
+        case GameImportTypes.startingPosition:
+        case GameImportTypes.fen:
+        case GameImportTypes.clone:
             if (request.pgnText === undefined) {
                 throw new ApiError({
                     statusCode: 400,
-                    publicMessage:
-                        'Invalid request: pgnText is required for this import method',
+                    publicMessage: 'Invalid request: pgnText is required for this import method',
                 });
             }
             return [request.pgnText];
 
-        case GameImportType.Manual:
+        case GameImportTypes.manual:
             if (request.pgnText === undefined) {
                 throw new ApiError({
                     statusCode: 400,
-                    publicMessage:
-                        'Invalid request: pgnText is required for this import method',
+                    publicMessage: 'Invalid request: pgnText is required for this import method',
                 });
             }
-            return splitPgns(request.pgnText).map(cleanupChessbasePgn);
+            return splitPgns(request.pgnText).map(cleanupPgn);
     }
-
-    throw new ApiError({
-        statusCode: 400,
-        publicMessage: `Invalid request: type ${request.type} not supported`,
-    });
-}
-
-/**
- * Cleans up a PGN to remove Chessbase-specific issues. If the PGN is from
- * Chessbase (determined by the presence of the %evp command), then we apply
- * two transformations to the PGN. First, all newlines in the PGN are converted
- * to the space character to revert Chessbase PGN line wrapping. After this
- * conversion, any double spaces are converted to a newline to re-introduce
- * newlines added by the user in a comment. Second, if the clock times are
- * present in %emt format, they are converted to %clk format.
- * @param pgn The PGN to potentially clean up.
- * @returns The cleaned PGN if it is from Chessbase, or the PGN unchanged if not.
- */
-function cleanupChessbasePgn(pgn: string): string {
-    const startIndex = pgn.indexOf('{[%evp');
-    if (startIndex < 0) {
-        return pgn;
-    }
-    return convertEmt(
-        pgn.substring(0, startIndex) +
-            pgn.substring(startIndex).replaceAll('\n', ' ').replaceAll('  ', '\n'),
-    );
-}
-
-/**
- * Converts %emt commands to %clk commands in the PGN using the following
- * algorithm:
- *   1. If the TimeControl header is not present in the PGN, then %emt is
- *      converted to %clk using raw string replacement.
- *   2. Otherwise, go through each move and use the %emt value to calculate
- *      the player's remaining clock time after the move. Set %clk to that
- *      value.
- *   3. If at any point during step 2 a player has a negative clock time,
- *      assume that Chessbase incorrectly used %emt and fallback to using
- *      raw string replacement.
- * @param pgn The PGN to convert.
- * @returns The converted PGN.
- */
-function convertEmt(pgn: string): string {
-    const chess = new Chess({ pgn });
-    const timeControls = chess.header().tags.TimeControl?.items;
-
-    if (!timeControls || timeControls.length === 0) {
-        return pgn.replaceAll('[%emt', '[%clk');
-    }
-
-    let timeControlIdx = 0;
-    let evenPlayerClock = timeControls[0].seconds || 0;
-    let oddPlayerClock = timeControls[0].seconds || 0;
-
-    for (let i = 0; i < chess.history().length; i++) {
-        const move = chess.history()[i];
-        const timeControl = timeControls[timeControlIdx];
-
-        let timeUsed = clockToSeconds(move.commentDiag?.emt) ?? 0;
-        if ((i === 0 || i === 1) && timeUsed === 60) {
-            // Chessbase has a weird bug where it will say the players used 1 min on the first
-            // move even if they actually used no time
-            timeUsed = 0;
-        }
-
-        let newTime: number;
-        let additionalTime = 0;
-
-        if (
-            timeControl.moves &&
-            timeControlIdx + 1 < timeControls.length &&
-            i / 2 === timeControl.moves - 1
-        ) {
-            additionalTime = Math.max(0, timeControls[timeControlIdx + 1].seconds ?? 0);
-            if (move.color === 'b') {
-                timeControlIdx++;
-            }
-        }
-
-        if (i % 2) {
-            oddPlayerClock =
-                oddPlayerClock -
-                timeUsed +
-                Math.max(0, timeControl.increment ?? timeControl.delay ?? 0) +
-                additionalTime;
-            newTime = oddPlayerClock;
-        } else {
-            evenPlayerClock =
-                evenPlayerClock -
-                timeUsed +
-                Math.max(0, timeControl.increment ?? timeControl.delay ?? 0) +
-                additionalTime;
-            newTime = evenPlayerClock;
-        }
-
-        if (newTime < 0) {
-            return pgn.replaceAll('[%emt', '[%clk');
-        }
-
-        chess.setCommand('emt', '', move);
-        chess.setCommand('clk', secondsToClock(newTime), move);
-    }
-
-    return chess.renderPgn();
 }
 
 /**
@@ -326,13 +211,20 @@ function convertEmt(pgn: string): string {
  * @param user The user owning the new Games.
  * @param pgnTexts The PGNs to convert.
  * @param directory The directory to place the Games into.
+ * @param publish Whether the game should be published or not.
  * @returns A list of new Games.
  */
-function getGames(user: User, pgnTexts: string[], directory?: string): Game[] {
+function getGames(
+    user: User,
+    pgnTexts: string[],
+    directory?: string,
+    publish?: boolean,
+    orientation?: GameOrientation,
+): Game[] {
     const games: Game[] = [];
     for (let i = 0; i < pgnTexts.length; i++) {
         console.log('Parsing game %d: %s', i + 1, pgnTexts[i]);
-        games.push(getGame(user, pgnTexts[i], undefined, directory));
+        games.push(getGame(user, pgnTexts[i], undefined, directory, publish, orientation));
     }
     return games;
 }
@@ -357,6 +249,8 @@ export function isFairyChess(pgnText: string) {
  * @param pgnText The PGN to convert.
  * @param headers The import headers which will be applied to the Game's headers.
  * @param directory The directory to place the Game into.
+ * @param publish Whether the game should be published or not.
+ * @param orientation The default orientation of the game. If excluded, it is inferred from the player names.
  * @returns A new Game object.
  */
 export function getGame(
@@ -364,6 +258,8 @@ export function getGame(
     pgnText: string,
     headers?: GameImportHeaders,
     directory?: string,
+    publish?: boolean,
+    orientation?: GameOrientation,
 ): Game {
     // We do not support variants due to current limitations with
     // @JackStenglein/pgn-parser
@@ -402,10 +298,26 @@ export function getGame(
             chess.setHeader('Result', '*');
         }
 
+        if (publish) {
+            const missingDataErr = isMissingData({
+                white: chess.header().tags.White,
+                black: chess.header().tags.Black,
+                result: chess.header().tags.Result,
+                date: chess.header().tags.Date?.value,
+            });
+            if (missingDataErr) {
+                throw new ApiError({
+                    statusCode: 400,
+                    publicMessage: `Published games can not be missing data: ${missingDataErr}`,
+                    privateMessage: 'publish requested, but game was missing data',
+                });
+            }
+        }
+
         const now = new Date();
         const uploadDate = now.toISOString().slice(0, '2024-01-01'.length);
 
-        return {
+        const game: Game = {
             cohort: user?.dojoCohort || '',
             id: `${uploadDate.replaceAll('-', '.')}_${uuidv4()}`,
             white: chess.header().tags.White?.toLowerCase() || '?',
@@ -418,12 +330,19 @@ export function getGame(
             ownerPreviousCohort: user?.previousCohort || '',
             headers: chess.header().valueMap(),
             pgn: chess.renderPgn(),
-            orientation: getDefaultOrientation(chess, user),
+            orientation: orientation || getDefaultOrientation(chess, user),
             comments: [],
             positionComments: {},
-            unlisted: true,
+            unlisted: !publish,
             directories: directory ? [directory] : undefined,
         };
+
+        if (publish) {
+            game.publishedAt = game.createdAt;
+            game.timelineId = `${game.publishedAt.split('T')[0]}_${uuidv4()}`;
+        }
+
+        return game;
     } catch (err) {
         throw new ApiError({
             statusCode: 400,
@@ -489,10 +408,7 @@ async function batchPutGames(games: Game[]): Promise<number> {
                 ReturnConsumedCapacity: 'NONE',
             }),
         );
-        if (
-            result.UnprocessedItems &&
-            Object.values(result.UnprocessedItems).length > 0
-        ) {
+        if (result.UnprocessedItems && Object.values(result.UnprocessedItems).length > 0) {
             throw new ApiError({
                 statusCode: 500,
                 publicMessage: 'Temporary server error',
@@ -516,10 +432,7 @@ async function addGamesToDirectory(owner: string, id: string, games: Game[]) {
     try {
         console.log('Adding %d games to directory %s/%s', games.length, owner, id);
         const directoryItems: DirectoryItem[] = games.map((g) => ({
-            type:
-                owner === g.owner
-                    ? DirectoryItemTypes.OWNED_GAME
-                    : DirectoryItemTypes.DOJO_GAME,
+            type: owner === g.owner ? DirectoryItemTypes.OWNED_GAME : DirectoryItemTypes.DOJO_GAME,
             id: `${g.cohort}/${g.id}`,
             metadata: {
                 cohort: g.cohort,
@@ -532,11 +445,44 @@ async function addGamesToDirectory(owner: string, id: string, games: Game[]) {
                 whiteElo: g.headers.WhiteElo,
                 blackElo: g.headers.BlackElo,
                 result: g.headers.Result,
+                unlisted: g.unlisted,
             },
         }));
 
         await addDirectoryItems(owner, id, directoryItems);
     } catch (err) {
         console.error('Failed to add games to directory: ', err);
+    }
+}
+
+/**
+ * Creates a timeline entry for the given Game.
+ * @param game The game to create the timeline entry for.
+ */
+export async function createTimelineEntry(game: Game) {
+    try {
+        await dynamo.send(
+            new PutItemCommand({
+                Item: marshall({
+                    owner: game.owner,
+                    id: game.timelineId,
+                    ownerDisplayName: game.ownerDisplayName,
+                    requirementId: 'GameSubmission',
+                    requirementName: 'GameSubmission',
+                    scoreboardDisplay: 'HIDDEN',
+                    cohort: game.cohort,
+                    createdAt: game.publishedAt,
+                    gameInfo: {
+                        id: game.id,
+                        headers: game.headers,
+                    },
+                    dojoPoints: 1,
+                    reactions: {},
+                }),
+                TableName: timelineTable,
+            }),
+        );
+    } catch (err) {
+        console.error('Failed to create timeline entry: ', err);
     }
 }

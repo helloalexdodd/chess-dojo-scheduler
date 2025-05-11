@@ -2,7 +2,7 @@ import { useApi } from '@/api/Api';
 import { RequestSnackbar, useRequest } from '@/api/Request';
 import { OpenClassicalPutPairingsRequest } from '@/api/tournamentApi';
 import { useAuth } from '@/auth/Auth';
-import { OpenClassical } from '@/database/tournament';
+import { getRatingRanges, OpenClassical } from '@/database/tournament';
 import { LoadingButton } from '@mui/lab';
 import {
     Button,
@@ -26,8 +26,7 @@ const Editor: React.FC<EditorProps> = ({ openClassical, onSuccess }) => {
     const { user } = useAuth();
     const [open, setOpen] = useState(false);
 
-    const maxRound =
-        (Object.values(openClassical?.sections || {})[0]?.rounds?.length || 0) + 1;
+    const maxRound = (Object.values(openClassical?.sections || {})[0]?.rounds?.length || 0) + 1;
 
     const [region, setRegion] = useState('');
     const [section, setSection] = useState('');
@@ -107,9 +106,8 @@ const Editor: React.FC<EditorProps> = ({ openClassical, onSuccess }) => {
                     <DialogTitle>Edit Tournament</DialogTitle>
                     <DialogContent>
                         <DialogContentText>
-                            Close registrations for the tournament? Pairings will be
-                            available to upload after registrations are closed. Note: this
-                            cannot be undone.
+                            Close registrations for the tournament? Pairings will be available to
+                            upload after registrations are closed. Note: this cannot be undone.
                         </DialogContentText>
                     </DialogContent>
                     <DialogActions>
@@ -145,9 +143,7 @@ const Editor: React.FC<EditorProps> = ({ openClassical, onSuccess }) => {
                             helperText={errors.region}
                         >
                             <MenuItem value='A'>Region A (Americas)</MenuItem>
-                            <MenuItem value='B'>
-                                Region B (Eurasia/Africa/Oceania)
-                            </MenuItem>
+                            <MenuItem value='B'>Region B (Eurasia/Africa/Oceania)</MenuItem>
                         </TextField>
 
                         <TextField
@@ -160,8 +156,11 @@ const Editor: React.FC<EditorProps> = ({ openClassical, onSuccess }) => {
                             error={Boolean(errors.section)}
                             helperText={errors.section}
                         >
-                            <MenuItem value='Open'>Open</MenuItem>
-                            <MenuItem value='U1800'>U1800</MenuItem>
+                            {getRatingRanges(openClassical).map((rating) => (
+                                <MenuItem key={rating} value={rating}>
+                                    {rating}
+                                </MenuItem>
+                            ))}
                         </TextField>
 
                         <TextField

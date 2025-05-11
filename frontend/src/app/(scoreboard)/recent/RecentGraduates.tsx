@@ -2,26 +2,14 @@
 
 import { useApi } from '@/api/Api';
 import { RequestSnackbar, useRequest } from '@/api/Request';
+import { Link } from '@/components/navigation/Link';
 import { Graduation } from '@/database/graduation';
 import LoadingPage from '@/loading/LoadingPage';
 import Avatar from '@/profile/Avatar';
 import CohortIcon from '@/scoreboard/CohortIcon';
-import {
-    Divider,
-    FormControl,
-    Link,
-    MenuItem,
-    Select,
-    Stack,
-    Typography,
-} from '@mui/material';
-import { DataGridPro, GridColDef, GridRenderCellParams } from '@mui/x-data-grid-pro';
-import { LicenseInfo } from '@mui/x-license';
+import { Divider, FormControl, MenuItem, Select, Stack, Typography } from '@mui/material';
+import { DataGridPro, GridColDef, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid-pro';
 import { useEffect, useMemo, useState } from 'react';
-
-LicenseInfo.setLicenseKey(
-    '54bc84a7ecb1e4bb301846936cb75a56Tz03ODMxNixFPTE3MzExMDQzNDQwMDAsUz1wcm8sTE09c3Vic2NyaXB0aW9uLEtWPTI=',
-);
 
 function getUniqueGraduations(graduations: Graduation[]): Graduation[] {
     return [...new Map(graduations.map((g) => [g.username, g])).values()];
@@ -46,8 +34,7 @@ function getTimeframeOptions() {
     let currGraduation = new Date();
     currGraduation.setUTCHours(17, 30, 0, 0);
     currGraduation.setUTCDate(
-        currGraduation.getUTCDate() +
-            ((graduationDayOfWeek + 7 - currGraduation.getUTCDay()) % 7),
+        currGraduation.getUTCDate() + ((graduationDayOfWeek + 7 - currGraduation.getUTCDay()) % 7),
     );
 
     const options: TimeframeOption[] = [];
@@ -77,14 +64,11 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
         field: 'displayName',
         headerName: 'Name',
         minWidth: 200,
+        flex: 1,
         renderCell: (params: GridRenderCellParams<Graduation, string>) => {
             return (
                 <Stack direction='row' spacing={1} alignItems='center'>
-                    <Avatar
-                        username={params.row.username}
-                        displayName={params.value}
-                        size={32}
-                    />
+                    <Avatar username={params.row.username} displayName={params.value} size={32} />
                     <Link href={`/profile/${params.row.username}`}>{params.value}</Link>
                 </Stack>
             );
@@ -96,6 +80,7 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
         align: 'center',
         headerAlign: 'center',
         minWidth: 150,
+        flex: 1,
         valueGetter: (_value, row) => {
             if (row.graduationCohorts && row.graduationCohorts.length > 0) {
                 return row.graduationCohorts;
@@ -106,9 +91,7 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
             let graduationCohorts = params.row.graduationCohorts;
             if (graduationCohorts && graduationCohorts.length > 0) {
                 if (graduationCohorts.length > 3) {
-                    graduationCohorts = graduationCohorts.slice(
-                        graduationCohorts.length - 3,
-                    );
+                    graduationCohorts = graduationCohorts.slice(graduationCohorts.length - 3);
                 }
                 return (
                     <Stack direction='row' justifyContent='center'>
@@ -127,6 +110,7 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
         minWidth: 150,
         headerAlign: 'center',
         align: 'center',
+        flex: 1,
         valueGetter: (_value, row) => {
             return parseInt(row.previousCohort.split('-')[0]);
         },
@@ -144,6 +128,7 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
         minWidth: 150,
         headerAlign: 'center',
         align: 'center',
+        flex: 1,
         valueGetter: (_value, row) => {
             return parseInt(row.newCohort.replaceAll('+', '').split('-')[0]);
         },
@@ -160,6 +145,7 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
         headerName: 'Dojo Score',
         headerAlign: 'center',
         align: 'center',
+        flex: 1,
         valueFormatter: (value) => Math.round(value * 100) / 100,
         renderCell: (params) => (
             <Stack height='30px' justifyContent='center'>
@@ -172,6 +158,7 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
         headerName: 'Date',
         headerAlign: 'center',
         align: 'center',
+        flex: 1,
         valueFormatter: (value) => new Date(value).toLocaleDateString(),
         renderCell: (params) => (
             <Stack height='30px' justifyContent='center'>
@@ -179,14 +166,22 @@ const graduateTableColumns: GridColDef<Graduation>[] = [
             </Stack>
         ),
     },
-    {
-        field: 'comments',
-        headerName: 'Comments',
-        headerAlign: 'center',
-        align: 'center',
-        minWidth: 250,
-    },
 ];
+
+function DetailPanelContent(params: GridRowParams<Graduation>) {
+    if (!params.row.comments) {
+        return '';
+    }
+    return (
+        <Typography mx={2} my={1}>
+            {params.row.comments}
+        </Typography>
+    );
+}
+
+function getDetailPanelHeight(): 'auto' {
+    return 'auto';
+}
 
 const RecentGraduates = () => {
     const api = useApi();
@@ -209,10 +204,7 @@ const RecentGraduates = () => {
         const gs = request.data ?? [];
 
         return getUniqueGraduations(
-            gs.filter(
-                (g) =>
-                    g.createdAt >= timeframe.minDate && g.createdAt < timeframe.maxDate,
-            ),
+            gs.filter((g) => g.createdAt >= timeframe.minDate && g.createdAt < timeframe.maxDate),
         );
     }, [request.data, timeframe]);
 
@@ -261,39 +253,47 @@ const RecentGraduates = () => {
                     <Typography>No graduations in the selected timeframe</Typography>
                 )
             ) : (
-                <DataGridPro
-                    data-cy='recent-graduates-table'
-                    columns={graduateTableColumns}
-                    rows={graduations}
-                    getRowId={(row: Graduation) => row.username}
-                    getRowHeight={() => 'auto'}
-                    sx={{
-                        width: 1,
-                        '&.MuiDataGrid-root--densityCompact .MuiDataGrid-cell': {
-                            py: '8px',
-                        },
-                        '&.MuiDataGrid-root--densityStandard .MuiDataGrid-cell': {
-                            py: '15px',
-                        },
-                        '&.MuiDataGrid-root--densityComfortable .MuiDataGrid-cell': {
-                            py: '22px',
-                        },
-                    }}
-                    pageSizeOptions={[10, 25, 100]}
-                    initialState={{
-                        pagination: {
-                            paginationModel: {
-                                page: 0,
-                                pageSize: 100,
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <DataGridPro
+                        columns={graduateTableColumns}
+                        rows={graduations}
+                        getRowId={(row: Graduation) => row.username}
+                        getRowHeight={() => 'auto'}
+                        sx={{
+                            width: 1,
+                            '&.MuiDataGrid-root--densityCompact .MuiDataGrid-cell': {
+                                py: '8px',
                             },
-                        },
-                        sorting: {
-                            sortModel: [{ field: 'newCohort', sort: 'asc' }],
-                        },
-                    }}
-                    pagination
-                    autoHeight
-                />
+                            '&.MuiDataGrid-root--densityStandard .MuiDataGrid-cell': {
+                                py: '15px',
+                            },
+                            '&.MuiDataGrid-root--densityComfortable .MuiDataGrid-cell': {
+                                py: '22px',
+                            },
+                        }}
+                        pageSizeOptions={[10, 25, 100]}
+                        initialState={{
+                            pagination: {
+                                paginationModel: {
+                                    page: 0,
+                                    pageSize: 100,
+                                },
+                            },
+                            sorting: {
+                                sortModel: [{ field: 'newCohort', sort: 'asc' }],
+                            },
+                            detailPanel: {
+                                expandedRowIds: new Set(graduations.map((g) => g.username)),
+                            },
+                        }}
+                        getDetailPanelContent={DetailPanelContent}
+                        getDetailPanelHeight={getDetailPanelHeight}
+                        pagination
+                        slotProps={{
+                            root: { 'data-cy': 'recent-graduates-table' },
+                        }}
+                    />
+                </div>
             )}
         </Stack>
     );

@@ -1,3 +1,5 @@
+import { EventType, trackEvent } from '@/analytics/events';
+import { Link } from '@/components/navigation/Link';
 import {
     Button,
     Dialog,
@@ -6,8 +8,8 @@ import {
     DialogContentText,
     DialogTitle,
 } from '@mui/material';
+import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { EventType, trackEvent } from '../analytics/events';
 
 export enum RestrictedAction {
     AccessAllTasks = 'Access all training plan tasks for all cohorts (0-2500)',
@@ -15,7 +17,6 @@ export enum RestrictedAction {
     AddCalendarEvents = 'Add events to the Dojo Calendar',
     SubmitGames = 'View the full Dojo Database and publish your games',
     JoinScoreboard = 'Get added to the Dojo Scoreboard',
-    JoinDiscord = 'Join the Training Program Discord server',
     Graduate = 'Graduate and get featured in the graduation shows on Twitch',
     DownloadDatabase = 'Download the full Dojo Database',
     SearchDatabase = 'Search the Dojo Database by player',
@@ -32,7 +33,6 @@ const defaultBulletPoints = [
     RestrictedAction.AddCalendarEvents,
     RestrictedAction.SubmitGames,
     RestrictedAction.JoinScoreboard,
-    RestrictedAction.JoinDiscord,
     RestrictedAction.Graduate,
 ];
 
@@ -49,6 +49,8 @@ const UpsellDialog: React.FC<UpsellDialogProps> = ({
     bulletPoints = defaultBulletPoints,
     currentAction,
 }) => {
+    const pathname = usePathname();
+
     useEffect(() => {
         if (open) {
             trackEvent(EventType.ViewUpsellDialog, { current_action: currentAction });
@@ -56,18 +58,8 @@ const UpsellDialog: React.FC<UpsellDialogProps> = ({
     }, [open, currentAction]);
 
     if (currentAction) {
-        bulletPoints = [
-            currentAction,
-            ...bulletPoints.filter((bp) => bp !== currentAction),
-        ];
+        bulletPoints = [currentAction, ...bulletPoints.filter((bp) => bp !== currentAction)];
     }
-
-    const onViewPrices = (event: React.MouseEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const currentPage = encodeURIComponent(window.location.href);
-        window.location.href = `/prices?redirect=${currentPage}`;
-    };
 
     return (
         <Dialog
@@ -80,8 +72,7 @@ const UpsellDialog: React.FC<UpsellDialogProps> = ({
             <DialogTitle>Upgrade to a Full Account</DialogTitle>
             <DialogContent>
                 <DialogContentText>
-                    You're currently on the free plan. Subscribe to the full training plan
-                    to:
+                    You're currently on the free plan. Subscribe to the full training plan to:
                 </DialogContentText>
                 <DialogContentText component='div'>
                     <ul>
@@ -92,14 +83,13 @@ const UpsellDialog: React.FC<UpsellDialogProps> = ({
                     </ul>
                 </DialogContentText>
                 <DialogContentText>
-                    Your progress on the free plan will be carried over when you
-                    subscribe.
+                    Your progress on the free plan will be carried over when you subscribe.
                 </DialogContentText>
             </DialogContent>
             <DialogActions>
                 <Button onClick={() => onClose(false)}>Cancel</Button>
-                <Button onClick={onViewPrices} href='/prices'>
-                    View Prices
+                <Button component={Link} href={`/prices?redirect=${pathname}`}>
+                    View Options
                 </Button>
             </DialogActions>
         </Dialog>

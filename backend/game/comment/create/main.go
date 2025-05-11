@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -57,11 +58,19 @@ func handler(ctx context.Context, event api.Request) (api.Response, error) {
 		return api.Failure(err), nil
 	}
 
-	if comment.Owner.Username != game.Owner {
-		notification := database.GameCommentNotification(game)
-		if err := repository.PutNotification(notification); err != nil {
-			log.Error("Failed to create game comment notification:", err)
+	if err := database.SendGameCommentEvent(game, &comment); err != nil {
+		log.Error("Failed to send game comment notification event:", err)
+	}
+
+	if strings.HasPrefix(event.RawPath, "/game/v2/") {
+		response := struct {
+			Game    database.Game            `json:"game"`
+			Comment database.PositionComment `json:"comment"`
+		}{
+			Game:    *game,
+			Comment: comment,
 		}
+		return api.Success(response), nil
 	}
 
 	return api.Success(game), nil
@@ -93,8 +102,8 @@ func getComment(event api.Request) (database.PositionComment, error) {
 		return comment, errors.New(400, "Invalid request: ply must be non-negative", "")
 	}
 
-	if comment.Content == "" {
-		return comment, errors.New(400, "Invalid request: content must not be empty", "")
+	if comment.Content == "" && comment.SuggestedVariation == "" {
+		return comment, errors.New(400, "Invalid request: one of content and suggestedVariation must be non-empty", "")
 	}
 
 	comment.Id = uuid.NewString()

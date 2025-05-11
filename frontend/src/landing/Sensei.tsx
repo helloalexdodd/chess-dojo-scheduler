@@ -1,4 +1,4 @@
-import { Card, CardContent, CardMedia, Grid2, Stack, Typography } from '@mui/material';
+import { Card, CardContent, CardMedia, Grid, Stack, Typography } from '@mui/material';
 
 const senseis = [
     {
@@ -36,15 +36,9 @@ const Sensei = () => {
             <Typography variant='h4' mb={3} textAlign='center'>
                 World-class teachers who have been in your shoes
             </Typography>
-            <Grid2
-                container
-                sx={{ width: 1 }}
-                rowGap={2}
-                columnSpacing={3}
-                justifyContent='center'
-            >
+            <Grid container sx={{ width: 1 }} rowGap={2} columnSpacing={3} justifyContent='center'>
                 {senseis.map((sensei) => (
-                    <Grid2
+                    <Grid
                         key={sensei.name}
                         size={{
                             xs: 12,
@@ -66,14 +60,12 @@ const Sensei = () => {
                                 <Typography variant='subtitle1' gutterBottom>
                                     {sensei.title}
                                 </Typography>
-                                <Typography color='text.secondary'>
-                                    {sensei.description}
-                                </Typography>
+                                <Typography color='text.secondary'>{sensei.description}</Typography>
                             </CardContent>
                         </Card>
-                    </Grid2>
+                    </Grid>
                 ))}
-            </Grid2>
+            </Grid>
         </Stack>
     );
 };

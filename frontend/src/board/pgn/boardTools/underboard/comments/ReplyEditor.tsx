@@ -1,6 +1,6 @@
 import { useApi } from '@/api/Api';
 import { RequestSnackbar, useRequest } from '@/api/Request';
-import { useRequiredAuth } from '@/auth/Auth';
+import { useAuth } from '@/auth/Auth';
 import { BlockBoardKeyboardShortcuts } from '@/board/pgn/PgnBoard';
 import useGame from '@/context/useGame';
 import { PositionComment } from '@/database/game';
@@ -17,10 +17,10 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({ parent, onCancel }) => {
     const [value, setValue] = useState('');
     const request = useRequest();
     const api = useApi();
-    const { user } = useRequiredAuth();
+    const { user } = useAuth();
     const { game, onUpdateGame } = useGame();
 
-    if (!game || !onUpdateGame) {
+    if (!game || !onUpdateGame || !user) {
         return null;
     }
 
@@ -51,7 +51,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({ parent, onCancel }) => {
         request.onStart();
         api.createComment(game.cohort, game.id, positionComment, true)
             .then((resp) => {
-                onUpdateGame(resp.data);
+                onUpdateGame(resp.data.game);
                 onCancel();
             })
             .catch((err) => {

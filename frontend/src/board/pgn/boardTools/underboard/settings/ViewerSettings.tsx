@@ -1,12 +1,5 @@
 import { HIGHLIGHT_ENGINE_LINES } from '@/stockfish/engine/engine';
-import {
-    Checkbox,
-    FormControlLabel,
-    MenuItem,
-    Stack,
-    TextField,
-    Typography,
-} from '@mui/material';
+import { Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useLocalStorage } from 'usehooks-ts';
 import KeyboardShortcuts from './KeyboardShortcuts';
 
@@ -23,6 +16,17 @@ export const ShowMoveTimesInPgn = {
 export const ShowLegalMovesKey = 'showLegalMoves';
 export const CapturedMaterialBehaviorKey = 'capturedMaterialBehavior';
 export const ShowGlyphsKey = 'showGlyphsOnBoard';
+
+export const HideEngine = {
+    Key: 'hideEngine',
+    Default: false,
+} as const;
+
+/** Whether to show suggested variations in the PGN text. */
+export const ShowSuggestedVariations = {
+    key: 'showSuggestedVariations',
+    default: true,
+} as const;
 
 export enum BoardStyle {
     Standard = 'STANDARD',
@@ -43,6 +47,7 @@ export enum PieceStyle {
     Chessnut = 'CHERRY',
     Cburnett = 'WALNUT',
     ThreeD = 'THREE_D',
+    ThreeDRedBlue = 'THREE_D_RED_BLUE',
 }
 
 export enum CoordinateStyle {
@@ -69,14 +74,8 @@ export enum CapturedMaterialBehavior {
 }
 
 const ViewerSettings = () => {
-    const [boardStyle, setBoardStyle] = useLocalStorage<string>(
-        BoardStyleKey,
-        BoardStyle.Standard,
-    );
-    const [pieceStyle, setPieceStyle] = useLocalStorage<string>(
-        PieceStyleKey,
-        PieceStyle.Standard,
-    );
+    const [boardStyle, setBoardStyle] = useLocalStorage<string>(BoardStyleKey, BoardStyle.Standard);
+    const [pieceStyle, setPieceStyle] = useLocalStorage<string>(PieceStyleKey, PieceStyle.Standard);
     const [coordinateStyle, setCoordinateStyle] = useLocalStorage<CoordinateStyle>(
         CoordinateStyleKey,
         CoordinateStyle.RankFileOnly,
@@ -93,17 +92,24 @@ const ViewerSettings = () => {
         ShowMoveTimesInPgn.Key,
         ShowMoveTimesInPgn.Default,
     );
-    const [capturedMaterialBehavior, setCapturedMaterialBehavior] =
-        useLocalStorage<string>(
-            CapturedMaterialBehaviorKey,
-            CapturedMaterialBehavior.Difference,
-        );
+    const [capturedMaterialBehavior, setCapturedMaterialBehavior] = useLocalStorage<string>(
+        CapturedMaterialBehaviorKey,
+        CapturedMaterialBehavior.Difference,
+    );
     const [showLegalMoves, setShowLegalMoves] = useLocalStorage(ShowLegalMovesKey, true);
     const [showGlyphs, setShowGlyphs] = useLocalStorage(ShowGlyphsKey, false);
 
+    const [hideEngine, setHideEngine] = useLocalStorage<boolean>(
+        HideEngine.Key,
+        HideEngine.Default,
+    );
     const [highlightEngineLines, setHighlightEngineLines] = useLocalStorage<boolean>(
         HIGHLIGHT_ENGINE_LINES.Key,
         HIGHLIGHT_ENGINE_LINES.Default,
+    );
+    const [showSuggestedVariations, setShowSuggestedVariations] = useLocalStorage<boolean>(
+        ShowSuggestedVariations.key,
+        ShowSuggestedVariations.default,
     );
 
     return (
@@ -139,6 +145,7 @@ const ViewerSettings = () => {
                 <MenuItem value={PieceStyle.Pixel}>Pixel</MenuItem>
                 <MenuItem value={PieceStyle.Spatial}>Spatial</MenuItem>
                 <MenuItem value={PieceStyle.ThreeD}>3D</MenuItem>
+                <MenuItem value={PieceStyle.ThreeDRedBlue}>3D (Red/Blue)</MenuItem>
             </TextField>
 
             <TextField
@@ -148,9 +155,7 @@ const ViewerSettings = () => {
                 onChange={(e) => setCoordinateStyle(e.target.value as CoordinateStyle)}
             >
                 <MenuItem value={CoordinateStyle.None}>None</MenuItem>
-                <MenuItem value={CoordinateStyle.RankFileOnly}>
-                    Rank and File Only
-                </MenuItem>
+                <MenuItem value={CoordinateStyle.RankFileOnly}>Rank and File Only</MenuItem>
                 <MenuItem value={CoordinateStyle.AllSquares}>Every Square</MenuItem>
             </TextField>
 
@@ -160,12 +165,8 @@ const ViewerSettings = () => {
                 value={goToEndBehavior}
                 onChange={(e) => setGoToEndBehavior(e.target.value)}
             >
-                <MenuItem value={GoToEndButtonBehavior.SingleClick}>
-                    Single Click
-                </MenuItem>
-                <MenuItem value={GoToEndButtonBehavior.DoubleClick}>
-                    Double Click
-                </MenuItem>
+                <MenuItem value={GoToEndButtonBehavior.SingleClick}>Single Click</MenuItem>
+                <MenuItem value={GoToEndButtonBehavior.DoubleClick}>Double Click</MenuItem>
                 <MenuItem value={GoToEndButtonBehavior.Hidden}>Hidden</MenuItem>
             </TextField>
 
@@ -189,9 +190,7 @@ const ViewerSettings = () => {
                 <MenuItem value={CapturedMaterialBehavior.Difference}>
                     Show Difference Only
                 </MenuItem>
-                <MenuItem value={CapturedMaterialBehavior.All}>
-                    Show All Captured Material
-                </MenuItem>
+                <MenuItem value={CapturedMaterialBehavior.All}>Show All Captured Material</MenuItem>
             </TextField>
 
             <Stack>
@@ -228,11 +227,31 @@ const ViewerSettings = () => {
                 <FormControlLabel
                     control={
                         <Checkbox
+                            checked={!hideEngine}
+                            onChange={(e) => setHideEngine(!e.target.checked)}
+                        />
+                    }
+                    label='Show engine'
+                />
+
+                <FormControlLabel
+                    control={
+                        <Checkbox
                             checked={highlightEngineLines}
                             onChange={(e) => setHighlightEngineLines(e.target.checked)}
                         />
                     }
                     label='Highlight engine lines in PGN text'
+                />
+
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={showSuggestedVariations}
+                            onChange={(e) => setShowSuggestedVariations(e.target.checked)}
+                        />
+                    }
+                    label="Display other users' suggested variations in PGN text"
                 />
             </Stack>
 

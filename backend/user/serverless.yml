@@ -60,6 +60,7 @@ functions:
         Resource: ${param:UsersTableArn}
 
   checkAccess:
+    condition: IsNotSimple
     handler: access/check/main.go
     events:
       - httpApi:
@@ -94,6 +95,11 @@ functions:
         Resource: ${param:UsersTableArn}
       - Effect: Allow
         Action:
+          - dynamodb:Query
+          - dynamodb:BatchWriteItem
+        Resource: ${param:TimelineTableArn}
+      - Effect: Allow
+        Action:
           - s3:PutObject
           - s3:DeleteObject
         Resource: !Join
@@ -114,12 +120,20 @@ functions:
       discordFindGameChannelId: ${file(../config-${sls:stage}.yml):discordFindGameChannelId}
       discordPrivateGuildId: ${file(../config-${sls:stage}.yml):discordPrivateGuildId}
       discordPublicGuildId: ${file(../config-${sls:stage}.yml):discordPublicGuildId}
+      discordFreeRoles: ${file(../config-${sls:stage}.yml):discordFreeRoles}
+      discordPaidRoles: ${file(../config-${sls:stage}.yml):discordPaidRoles}
 
   updateProgress:
     handler: progress/update/main.go
     events:
       - httpApi:
           path: /user/progress
+          method: post
+          authorizer:
+            type: jwt
+            id: ${param:apiAuthorizer}
+      - httpApi:
+          path: /user/progress/v2
           method: post
           authorizer:
             type: jwt
@@ -202,6 +216,9 @@ functions:
           authorizer:
             type: jwt
             id: ${param:apiAuthorizer}
+      - httpApi:
+          path: /public/user/{owner}/timeline
+          method: get
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -522,6 +539,7 @@ functions:
         Resource: ${param:GraduationsTableArn}
 
   checkSubscriptions:
+    condition: IsNotSimple
     handler: subscriptionCheck/main.go
     events:
       - schedule:
@@ -655,6 +673,12 @@ functions:
           authorizer:
             type: jwt
             id: ${param:apiAuthorizer}
+    environment:
+      discordAuth: ${file(../discord.yml):discordAuth}
+      discordPrivateGuildId: ${file(../config-${sls:stage}.yml):discordPrivateGuildId}
+      discordPublicGuildId: ${file(../config-${sls:stage}.yml):discordPublicGuildId}
+      discordFreeRoles: ${file(../config-${sls:stage}.yml):discordFreeRoles}
+      discordPaidRoles: ${file(../config-${sls:stage}.yml):discordPaidRoles}
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -740,6 +764,8 @@ functions:
           authorizer:
             type: jwt
             id: ${param:apiAuthorizer}
+    environment:
+      notificationEventSqsUrl: ${param:NotificationEventQueueUrl}
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -755,6 +781,10 @@ functions:
         Action:
           - dynamodb:UpdateItem
         Resource: ${param:NotificationsTableArn}
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource: ${param:NotificationEventQueueArn}
 
   listFollowers:
     handler: followers/list/main.go
@@ -777,8 +807,13 @@ functions:
                 - '/index/FollowingIndex'
 
 resources:
+  Conditions:
+    IsProd: !Equals ['${sls:stage}', 'prod']
+    IsNotSimple: !Not [!Equals ['${sls:stage}', 'simple']]
+
   Resources:
     UpdateRatingsTimeoutAlarm:
+      Condition: IsNotSimple
       Type: AWS::CloudWatch::Alarm
       Properties:
         AlarmName: UpdateRatingsTimeout-${sls:stage}
@@ -798,6 +833,7 @@ resources:
         TreatMissingData: ignore
 
     UpdateStatisticsTimeoutAlarm:
+      Condition: IsNotSimple
       Type: AWS::CloudWatch::Alarm
       Properties:
         AlarmName: UpdateStatisticsTimeout-${sls:stage}
@@ -817,6 +853,7 @@ resources:
         TreatMissingData: ignore
 
     UpdateTimeSpentTimeoutAlarm:
+      Condition: IsNotSimple
       Type: AWS::CloudWatch::Alarm
       Properties:
         AlarmName: UpdateTimeSpentTimeout-${sls:stage}

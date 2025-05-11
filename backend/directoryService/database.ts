@@ -1,10 +1,6 @@
 'use strict';
 
-import {
-    AttributeValue,
-    DynamoDBClient,
-    UpdateItemCommand,
-} from '@aws-sdk/client-dynamodb';
+import { AttributeValue, DynamoDBClient, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
 import { ApiError } from './api';
 
@@ -27,6 +23,7 @@ export class UpdateItemBuilder {
     private exprAttrValues: Record<string, AttributeValue> = {};
     private setExpression = '';
     private removeExpression = '';
+    private addExpression = '';
 
     private _condition: Condition | undefined;
     private returnValues: updateReturnType = 'NONE';
@@ -84,6 +81,45 @@ export class UpdateItemBuilder {
     }
 
     /**
+     * Adds a command to add the given value to the given attribute, which
+     * must be a number or set. If path is a string, it will be split around
+     * the period character and each component will be converted to a DynamoDB
+     * expression attribute name. If path is an array, each item will be converted
+     * to a DynamoDB expression attribute name.
+     * @param path The attribute path to add to.
+     * @param value The value to add. If undefined, this function is a no-op.
+     * @returns The UpdateItemBuilder for method chaining.
+     */
+    add(path: AttributePath, value: any): UpdateItemBuilder {
+        if (value === undefined) {
+            return this;
+        }
+
+        if (typeof path === 'string') {
+            return this.addPath(path.split(','), value);
+        }
+        return this.addPath(path, value);
+    }
+
+    /**
+     * Adds a command to add the given value to the given attribute path, which
+     * must be a number or set.
+     * @param path The attribute path to add to.
+     * @param value The value to add.
+     * @returns The UpdateItemBuilder for method chaining.
+     */
+    private addPath(path: AttributePathTokens, value: any): UpdateItemBuilder {
+        if (this.addExpression.length > 0) {
+            this.addExpression += ', ';
+        }
+        this.addExpression += this.addExpressionPath(path);
+        this.addExpression += ` :n${this.attrIndex}`;
+        this.exprAttrValues[`:n${this.attrIndex}`] = marshall(value);
+        this.attrIndex++;
+        return this;
+    }
+
+    /**
      * Adds a command to set the given attribute path to the given value.
      * If the value is undefined, this function is a no-op.
      * @param path The attribute path to set.
@@ -112,7 +148,8 @@ export class UpdateItemBuilder {
      * Adds a command to append the given values to the list specified by the given attribute path.
      * If path is a string, it will be split around the period character, and each component will be
      * converted to a DynamoDB expression attribute name. If path is an array, each item will be
-     * converted to a DynamoDB expression attribute name.
+     * converted to a DynamoDB expression attribute name. If the path does not already exist on the
+     * item, it will be set to an empty list before performing the append.
      * @param path The attribute path to set.
      * @param values The values to append to the end of the list.
      * @returns The UpdateItemBuilder for method chaining.
@@ -127,7 +164,8 @@ export class UpdateItemBuilder {
         }
 
         const pathExpr = this.addExpressionPath(path);
-        this.setExpression += `${pathExpr} = list_append(${pathExpr}, :n${this.attrIndex})`;
+        this.setExpression += `${pathExpr} = list_append(if_not_exists(${pathExpr}, :empty_list), :n${this.attrIndex})`;
+        this.exprAttrValues[':empty_list'] = { L: [] };
         this.exprAttrValues[`:n${this.attrIndex}`] = marshall(values, {
             removeUndefinedValues: true,
             convertTopLevelContainer: true,
@@ -206,16 +244,18 @@ export class UpdateItemBuilder {
         if (this.removeExpression.length > 0) {
             updateExpression += ` REMOVE ${this.removeExpression}`;
         }
+        if (this.addExpression.length > 0) {
+            updateExpression += ` ADD ${this.addExpression}`;
+        }
 
+        const conditionExpr = this._condition?.build(this.exprAttrNames, this.exprAttrValues);
         return new UpdateItemCommand({
             Key: this.keys,
             UpdateExpression: updateExpression,
             ExpressionAttributeNames: this.exprAttrNames,
-            ExpressionAttributeValues: this.exprAttrValues,
-            ConditionExpression: this._condition?.build(
-                this.exprAttrNames,
-                this.exprAttrValues,
-            ),
+            ExpressionAttributeValues:
+                Object.entries(this.exprAttrValues).length > 0 ? this.exprAttrValues : undefined,
+            ConditionExpression: conditionExpr,
             ReturnValues: this.returnValues,
             TableName: this._table,
         });
@@ -301,11 +341,7 @@ class AndCondition extends Condition {
     ) {
         const result = this.conditions
             .map((condition, index) =>
-                condition.build(
-                    exprAttrNames,
-                    exprAttrValues,
-                    `${parentAttrIndex}${index}`,
-                ),
+                condition.build(exprAttrNames, exprAttrValues, `${parentAttrIndex}${index}`),
             )
             .join(' AND ');
         return `(${result})`;
@@ -355,15 +391,11 @@ class AttributeNotExistsCondition extends Condition {
 }
 
 class EqualityCondition extends Condition {
-    private path: AttributePathTokens;
-    private value: any;
-    private comparator: '=' | '<>' | '<' | '<=' | '>' | '>=';
+    protected path: AttributePathTokens;
+    protected value: any;
+    protected comparator: '=' | '<>' | '<' | '<=' | '>' | '>=';
 
-    constructor(
-        path: AttributePath,
-        value: any,
-        comparator: '=' | '<>' | '<' | '<=' | '>' | '>=',
-    ) {
+    constructor(path: AttributePath, value: any, comparator: '=' | '<>' | '<' | '<=' | '>' | '>=') {
         super();
 
         if (typeof path === 'string') {
@@ -386,6 +418,24 @@ class EqualityCondition extends Condition {
         exprAttrValues[valueName] = marshall(this.value, { removeUndefinedValues: true });
 
         return `${this.addExpressionPath(this.path, exprAttrNames, parentAttrIndex)} ${this.comparator} ${valueName}`;
+    }
+}
+
+class SizeCondition extends EqualityCondition {
+    constructor(path: AttributePath, value: any, comparator: '=' | '<>' | '<' | '<=' | '>' | '>=') {
+        super(path, value, comparator);
+    }
+
+    build(
+        exprAttrNames: Record<string, string>,
+        exprAttrValues: Record<string, AttributeValue>,
+        parentAttrIndex = '',
+    ) {
+        const valueName = `:c${parentAttrIndex}${this.attrIndex}`;
+        this.attrIndex++;
+        exprAttrValues[valueName] = marshall(this.value, { removeUndefinedValues: true });
+
+        return `size(${this.addExpressionPath(this.path, exprAttrNames, parentAttrIndex)}) ${this.comparator} ${valueName}`;
     }
 }
 
@@ -434,4 +484,14 @@ export function equal(path: AttributePath, value: any): Condition {
  */
 export function notEqual(path: AttributePath, value: any): Condition {
     return new EqualityCondition(path, value, '<>');
+}
+
+/**
+ * Returns a condition which verifies that the attribute at the given
+ * path has a size less than the given value.
+ * @param path The path to check.
+ * @param value The value to compare against.
+ */
+export function sizeLessThan(path: AttributePath, value: number): Condition {
+    return new SizeCondition(path, value, '<');
 }

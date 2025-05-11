@@ -1,11 +1,11 @@
 import { EngineName } from './engine';
 import { EngineWorker } from './EngineWorker';
 import { objectStorage } from './objectStorage';
-import makeModule from './sf17-79.js';
+import makeModule from './sf171-79.js';
 import { UciEngine } from './UciEngine';
 
 /**
- * Runs Stockfish 17 NNUE (79 MB desktop version).
+ * Runs Stockfish 17.1 NNUE (79 MB desktop version).
  */
 export class Stockfish17 extends UciEngine {
     constructor() {
@@ -26,7 +26,7 @@ export class Stockfish17 extends UciEngine {
                 .catch(reject);
         });
 
-        (await this.getModels(['nn-1111cefa1111.nnue', 'nn-37f18f62d772.nnue'])).forEach(
+        (await this.getModels(['nn-1c0000000000.nnue', 'nn-37f18f62d772.nnue'])).forEach(
             (nnueBuffer, i) => worker.setNnueBuffer?.(nnueBuffer, i),
         );
 
@@ -37,9 +37,7 @@ export class Stockfish17 extends UciEngine {
     public static isSupported() {
         return (
             typeof WebAssembly === 'object' &&
-            WebAssembly.validate(
-                Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00),
-            )
+            WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00))
         );
     }
 
@@ -49,9 +47,7 @@ export class Stockfish17 extends UciEngine {
                 const store = await objectStorage<Uint8Array>({ store: 'nnue' }).catch(
                     () => undefined,
                 );
-                const storedBuffer = await store
-                    ?.get(nnueFilename)
-                    .catch(() => undefined);
+                const storedBuffer = await store?.get(nnueFilename).catch(() => undefined);
 
                 if (storedBuffer && storedBuffer.length > 128 * 1024) {
                     return storedBuffer;
@@ -63,8 +59,7 @@ export class Stockfish17 extends UciEngine {
                 req.onprogress = (e) => console.log(e);
 
                 const nnueBuffer = await new Promise<Uint8Array>((resolve, reject) => {
-                    req.onerror = () =>
-                        reject(new Error(`NNUE download failed: ${req.status}`));
+                    req.onerror = () => reject(new Error(`NNUE download failed: ${req.status}`));
                     req.onload = () => {
                         if (req.status / 100 === 2)
                             resolve(new Uint8Array(req.response as Iterable<number>));
@@ -72,9 +67,7 @@ export class Stockfish17 extends UciEngine {
                     };
                     req.send();
                 });
-                store
-                    ?.put(nnueFilename, nnueBuffer)
-                    .catch(() => console.warn('IDB store failed'));
+                store?.put(nnueFilename, nnueBuffer).catch(() => console.warn('IDB store failed'));
                 return nnueBuffer;
             }),
         );

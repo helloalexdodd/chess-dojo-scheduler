@@ -64,18 +64,24 @@ functions:
           authorizer:
             type: jwt
             id: ${param:apiAuthorizer}
+      - httpApi:
+          path: /game/v2/{cohort}/{id+}
+          method: post
+          authorizer:
+            type: jwt
+            id: ${param:apiAuthorizer}
     iamRoleStatements:
       - Effect: Allow
-        Action:
-          - dynamodb:UpdateItem
-        Resource:
-          - ${param:GamesTableArn}
-          - ${param:NotificationsTableArn}
+        Action: dynamodb:UpdateItem
+        Resource: ${param:GamesTableArn}
       - Effect: Allow
-        Action:
-          - dynamodb:GetItem
-        Resource:
-          - ${param:UsersTableArn}
+        Action: dynamodb:GetItem
+        Resource: ${param:UsersTableArn}
+      - Effect: Allow
+        Action: sqs:SendMessage
+        Resource: ${param:NotificationEventQueueArn}
+    environment:
+      notificationEventSqsUrl: ${param:NotificationEventQueueUrl}
   
   editComment:
     handler: comment/edit/main.go
@@ -219,7 +225,7 @@ functions:
     iamRoleStatements:
       - Effect: Allow
         Action:
-          - dynamodb:Scan
+          - dynamodb:Query
         Resource: ${param:GamesTableArn}
       - Effect: Allow
         Action:
@@ -276,6 +282,11 @@ functions:
         Resource: 
           - ${param:GamesTableArn}
           - ${param:NotificationsTableArn}
+      - Effect: Allow
+        Action: sqs:SendMessage
+        Resource: ${param:NotificationEventQueueArn}
+    environment:
+      notificationEventSqsUrl: ${param:NotificationEventQueueUrl}
 
 resources:
   Resources:

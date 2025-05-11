@@ -1,13 +1,30 @@
+import { useAuth } from '@/auth/Auth';
 import { Move } from '@jackstenglein/chess';
-import { Divider, Grid2, Paper } from '@mui/material';
+import { Divider, Grid, Paper } from '@mui/material';
+import { useLocalStorage } from 'usehooks-ts';
+import {
+    isSuggestedVariation,
+    isVariationSuggestor,
+} from '../boardTools/underboard/comments/suggestVariation';
+import { ShowSuggestedVariations } from '../boardTools/underboard/settings/ViewerSettings';
 import Comment from './Comment';
 import { Ellipsis } from './Ellipsis';
 import Lines from './Lines';
 
-export function hasInterrupt(move: Move): boolean {
+export function hasInterrupt(
+    move: Move,
+    showSuggestedVariations: boolean,
+    username: string | undefined,
+): boolean {
     return (
         (move.commentAfter?.trim().length || 0) > 0 ||
-        move.variations.some((v) => v.length > 0)
+        move.variations.some(
+            (v) =>
+                v.length > 0 &&
+                (showSuggestedVariations ||
+                    !isSuggestedVariation(v[0]) ||
+                    isVariationSuggestor(username, v[0])),
+        )
     );
 }
 
@@ -17,14 +34,20 @@ interface InterruptProps {
 }
 
 const Interrupt: React.FC<InterruptProps> = ({ move, handleScroll }) => {
-    if (!hasInterrupt(move)) {
+    const { user } = useAuth();
+    const [showSuggestedVariations] = useLocalStorage<boolean>(
+        ShowSuggestedVariations.key,
+        ShowSuggestedVariations.default,
+    );
+
+    if (!hasInterrupt(move, showSuggestedVariations, user?.username)) {
         return null;
     }
 
     return (
         <>
             {move.ply % 2 === 1 && <Ellipsis ply={move.ply} />}
-            <Grid2 size={12}>
+            <Grid size={12}>
                 <Paper elevation={3} sx={{ boxShadow: 'none', color: 'text.secondary' }}>
                     <Divider
                         sx={{
@@ -45,12 +68,8 @@ const Interrupt: React.FC<InterruptProps> = ({ move, handleScroll }) => {
                                 zIndex: 1,
                                 top: '-5px',
                                 left: {
-                                    xs: `calc(100% * ${
-                                        move.ply % 2 ? '2 / 12' : '7 / 12'
-                                    } + 5px)`,
-                                    md: `calc(100% * ${
-                                        move.ply % 2 ? '2 / 12' : '7 / 12'
-                                    } + 5px)`,
+                                    xs: `calc(100% * ${move.ply % 2 ? '2 / 12' : '7 / 12'} + 5px)`,
+                                    md: `calc(100% * ${move.ply % 2 ? '2 / 12' : '7 / 12'} + 5px)`,
                                 },
                                 transform: 'rotate(45deg)',
                                 backgroundColor: 'inherit',
@@ -65,7 +84,7 @@ const Interrupt: React.FC<InterruptProps> = ({ move, handleScroll }) => {
 
                     <Divider />
                 </Paper>
-            </Grid2>
+            </Grid>
         </>
     );
 };

@@ -5,6 +5,8 @@ import {
     CreateDirectoryRequestV2Client,
     Directory,
     DirectoryAccessRole,
+    ExportDirectoryRequest,
+    ExportDirectoryRun,
     ListBreadcrumbsRequest,
     MoveDirectoryItemsRequestV2,
     RemoveDirectoryItemsRequestV2,
@@ -22,10 +24,7 @@ export interface DirectoryApiContextType {
      * @param id The id of the directory to get.
      * @returns The requested directory and the caller's access role for that directory.
      */
-    getDirectory: (
-        owner: string,
-        id: string,
-    ) => Promise<AxiosResponse<GetDirectoryResponse>>;
+    getDirectory: (owner: string, id: string) => Promise<AxiosResponse<GetDirectoryResponse>>;
 
     /**
      * Sends an API request to list the breadcrumbs for a directory.
@@ -94,6 +93,20 @@ export interface DirectoryApiContextType {
     moveDirectoryItems: (
         request: MoveDirectoryItemsRequestV2,
     ) => Promise<AxiosResponse<MoveDirectoryItemsResponse>>;
+
+    /**
+     * Sends an API request to export a directory or a list of games as a PGN.
+     * @param request The export directory request.
+     * @returns The id of the generated export.
+     */
+    exportDirectory: (request: ExportDirectoryRequest) => Promise<AxiosResponse<{ id: string }>>;
+
+    /**
+     * Sends an API request to check the status of an export directory run.
+     * @param id The id of the run to check.
+     * @returns The requested run.
+     */
+    checkDirectoryExport: (id: string) => Promise<AxiosResponse<ExportDirectoryRun>>;
 }
 
 export interface GetDirectoryResponse {
@@ -157,18 +170,11 @@ export interface CreateDirectoryResponse {
  * @returns An AxiosResponse containing the parent directory, the child directory
  * and the caller's access role on the child directory.
  */
-export function createDirectory(
-    idToken: string,
-    request: CreateDirectoryRequestV2Client,
-) {
+export function createDirectory(idToken: string, request: CreateDirectoryRequestV2Client) {
     const { owner, parent, ...rest } = request;
-    return axios.post<CreateDirectoryResponse>(
-        `${BASE_URL}/directory/${owner}/${parent}`,
-        rest,
-        {
-            headers: { Authorization: `Bearer ${idToken}` },
-        },
-    );
+    return axios.post<CreateDirectoryResponse>(`${BASE_URL}/directory/${owner}/${parent}`, rest, {
+        headers: { Authorization: `Bearer ${idToken}` },
+    });
 }
 
 export interface UpdateDirectoryResponse {
@@ -184,13 +190,9 @@ export interface UpdateDirectoryResponse {
  */
 export function updateDirectory(idToken: string, request: UpdateDirectoryRequestV2) {
     const { owner, id, ...rest } = request;
-    return axios.put<UpdateDirectoryResponse>(
-        `${BASE_URL}/directory/${owner}/${id}`,
-        rest,
-        {
-            headers: { Authorization: `Bearer ${idToken}` },
-        },
-    );
+    return axios.put<UpdateDirectoryResponse>(`${BASE_URL}/directory/${owner}/${id}`, rest, {
+        headers: { Authorization: `Bearer ${idToken}` },
+    });
 }
 
 /**
@@ -256,10 +258,7 @@ export function addDirectoryItems(idToken: string, request: AddDirectoryItemsReq
  * @param request The request to send.
  * @returns The updated directory.
  */
-export function removeDirectoryItem(
-    idToken: string,
-    request: RemoveDirectoryItemsRequestV2,
-) {
+export function removeDirectoryItem(idToken: string, request: RemoveDirectoryItemsRequestV2) {
     return axios.put<AddDirectoryItemsResponse>(
         `${BASE_URL}/directory/${request.owner}/${request.directoryId}/items/delete`,
         { itemIds: request.itemIds },
@@ -284,13 +283,32 @@ export interface MoveDirectoryItemsResponse {
  * @param request The request to send.
  * @returns The updated source/target directories.
  */
-export function moveDirectoryItems(
-    idToken: string,
-    request: MoveDirectoryItemsRequestV2,
-) {
-    return axios.put<MoveDirectoryItemsResponse>(
-        `${BASE_URL}/directory/items/move/v2`,
-        request,
-        { headers: { Authorization: `Bearer ${idToken}` } },
-    );
+export function moveDirectoryItems(idToken: string, request: MoveDirectoryItemsRequestV2) {
+    return axios.put<MoveDirectoryItemsResponse>(`${BASE_URL}/directory/items/move/v2`, request, {
+        headers: { Authorization: `Bearer ${idToken}` },
+    });
+}
+
+/**
+ * Sends an API request to export a directory or a list of games as a PGN.
+ * @param idToken The id token of the current signed-in user.
+ * @param request The request to send.
+ * @returns The id of the generated export.
+ */
+export function exportDirectory(idToken: string, request: ExportDirectoryRequest) {
+    return axios.post<{ id: string }>(`${BASE_URL}/directory/export`, request, {
+        headers: { Authorization: `Bearer ${idToken}` },
+    });
+}
+
+/**
+ * Sends an API request to check the status of an export directory run.
+ * @param idToken The id token of the current signed-in user.
+ * @param id The id of the run to check.
+ * @returns The requested run.
+ */
+export function checkDirectoryExport(idToken: string, id: string) {
+    return axios.get<ExportDirectoryRun>(`${BASE_URL}/directory/export/${id}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+    });
 }

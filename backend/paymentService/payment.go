@@ -10,13 +10,13 @@ import (
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/api/log"
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/database"
 	"github.com/jackstenglein/chess-dojo-scheduler/backend/paymentService/secrets"
-	"github.com/stripe/stripe-go/v76"
-	"github.com/stripe/stripe-go/v76/account"
-	"github.com/stripe/stripe-go/v76/accountlink"
-	bpsession "github.com/stripe/stripe-go/v76/billingportal/session"
-	"github.com/stripe/stripe-go/v76/checkout/session"
-	"github.com/stripe/stripe-go/v76/loginlink"
-	"github.com/stripe/stripe-go/v76/refund"
+	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/account"
+	"github.com/stripe/stripe-go/v81/accountlink"
+	bpsession "github.com/stripe/stripe-go/v81/billingportal/session"
+	"github.com/stripe/stripe-go/v81/checkout/session"
+	"github.com/stripe/stripe-go/v81/loginlink"
+	"github.com/stripe/stripe-go/v81/refund"
 )
 
 var frontendHost = os.Getenv("frontendHost")
@@ -116,7 +116,7 @@ type PurchaseSubscriptionRequest struct {
 	CancelUrl  string `json:"cancelUrl"`
 }
 
-func PurchaseSubscriptionUrl(user *database.User, request *PurchaseSubscriptionRequest) (string, error) {
+func PurchaseSubscriptionUrl(user *database.User, request *PurchaseSubscriptionRequest, userAgent, ipAddress string) (string, error) {
 	var priceId string
 
 	if user == nil {
@@ -134,11 +134,15 @@ func PurchaseSubscriptionUrl(user *database.User, request *PurchaseSubscriptionR
 	successUrl := request.SuccessUrl
 	if successUrl == "" {
 		successUrl = frontendHost
+	} else if !strings.HasPrefix(successUrl, frontendHost) {
+		successUrl = frontendHost + successUrl
 	}
 
 	cancelUrl := request.CancelUrl
 	if cancelUrl == "" {
 		cancelUrl = frontendHost
+	} else if !strings.HasPrefix(cancelUrl, frontendHost) {
+		cancelUrl = frontendHost + cancelUrl
 	}
 
 	params := &stripe.CheckoutSessionParams{
@@ -154,7 +158,9 @@ func PurchaseSubscriptionUrl(user *database.User, request *PurchaseSubscriptionR
 		ClientReferenceID:   stripe.String(user.Username),
 		AllowPromotionCodes: stripe.Bool(true),
 		Metadata: map[string]string{
-			"type": string(CheckoutSessionType_Subscription),
+			"type":      string(CheckoutSessionType_Subscription),
+			"userAgent": userAgent,
+			"ipAddress": ipAddress,
 		},
 		SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
 			TrialSettings: &stripe.CheckoutSessionSubscriptionDataTrialSettingsParams{
@@ -166,7 +172,7 @@ func PurchaseSubscriptionUrl(user *database.User, request *PurchaseSubscriptionR
 				"username": user.Username,
 			},
 		},
-		PaymentMethodCollection: stripe.String(string(stripe.CheckoutSessionPaymentMethodCollectionIfRequired)),
+		PaymentMethodCollection: stripe.String(string(stripe.CheckoutSessionPaymentMethodCollectionAlways)),
 	}
 
 	if user.PaymentInfo.GetCustomerId() != "" {
@@ -367,7 +373,7 @@ func CreateEventRefund(event *database.Event, participant *database.Participant,
 	if percentage <= 0 {
 		return nil, nil
 	}
-	if !participant.HasPaid {
+	if participant == nil || !participant.HasPaid {
 		return nil, nil
 	}
 

@@ -1,3 +1,6 @@
+import { useAuth } from '@/auth/Auth';
+import { TimelineProvider } from '@/components/profile/activity/useTimeline';
+import { TaskDialog, TaskDialogView } from '@/components/profile/trainingPlan/TaskDialog';
 import { GridColDef, GridRenderCellParams } from '@mui/x-data-grid-pro';
 import React, { useState } from 'react';
 import { Graduation, isGraduation } from '../database/graduation';
@@ -11,14 +14,13 @@ import {
 import { ScoreboardSummary, isScoreboardSummary } from '../database/scoreboard';
 import {
     MinutesSpentKey,
-    RatingSystem,
     User,
     formatRatingSystem,
     getNormalizedRating,
     getCurrentRating as getUserCurrentRating,
     getStartRating as getUserStartRating,
+    isCustom,
 } from '../database/user';
-import RequirementModal from '../requirements/RequirementModal';
 import ScoreboardCheck from './ScoreboardCheck';
 import ScoreboardProgress from './ScoreboardProgress';
 
@@ -31,6 +33,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ requirement, cohort }) => {
     const [showReqModal, setShowReqModal] = useState(false);
+    const { user } = useAuth();
 
     const totalCount = requirement.counts[cohort] || 0;
     let headerName = requirement.name.replaceAll('{{count}}', `${totalCount}`);
@@ -41,12 +44,18 @@ const Header: React.FC<HeaderProps> = ({ requirement, cohort }) => {
     return (
         <>
             <div onClick={() => setShowReqModal(true)}>{headerName}</div>
-            <RequirementModal
-                open={showReqModal}
-                onClose={() => setShowReqModal(false)}
-                requirement={requirement}
-                cohort={cohort}
-            />
+            {user && (
+                <TimelineProvider owner={user.username}>
+                    <TaskDialog
+                        open={showReqModal}
+                        onClose={() => setShowReqModal(false)}
+                        task={requirement}
+                        initialView={TaskDialogView.Details}
+                        cohort={cohort}
+                        progress={user.progress[requirement.id]}
+                    />
+                </TimelineProvider>
+            )}
         </>
     );
 };
@@ -75,11 +84,7 @@ export function getColumnDefinition(
     };
 
     const renderCell = (params: GridRenderCellParams<ScoreboardRow>) => {
-        const score = getCurrentCount(
-            cohort,
-            requirement,
-            getProgress(params.row)[requirement.id],
-        );
+        const score = getCurrentCount(cohort, requirement, getProgress(params.row)[requirement.id]);
         switch (requirement.scoreboardDisplay) {
             case ScoreboardDisplay.Checkbox:
                 return (
@@ -107,9 +112,7 @@ export function getColumnDefinition(
                         cohort={cohort}
                         requirement={requirement}
                         suffix={requirement.progressBarSuffix}
-                        isTime={
-                            requirement.scoreboardDisplay === ScoreboardDisplay.Minutes
-                        }
+                        isTime={requirement.scoreboardDisplay === ScoreboardDisplay.Minutes}
                     />
                 );
         }
@@ -159,9 +162,7 @@ export function getTotalTime(
     }
 
     const requirementIds = new Set(
-        requirements
-            .filter((r) => (r.category === 'Non-Dojo') === nonDojoOnly)
-            .map((r) => r.id),
+        requirements.filter((r) => (r.category === 'Non-Dojo') === nonDojoOnly).map((r) => r.id),
     );
 
     let result = 0;
@@ -212,12 +213,8 @@ export function formatPercentComplete(value: number) {
 }
 
 export function getRatingSystem(row: ScoreboardRow) {
-    if (
-        row.ratingSystem === RatingSystem.Custom &&
-        !isGraduation(row) &&
-        row.ratings[RatingSystem.Custom]?.name
-    ) {
-        return `Custom (${row.ratings[RatingSystem.Custom].name})`;
+    if (isCustom(row.ratingSystem) && !isGraduation(row) && row.ratings[row.ratingSystem]?.name) {
+        return `Custom (${row.ratings[row.ratingSystem]?.name})`;
     }
     return formatRatingSystem(row.ratingSystem);
 }

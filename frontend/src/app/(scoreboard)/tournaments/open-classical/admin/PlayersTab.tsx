@@ -1,6 +1,7 @@
 import { useApi } from '@/api/Api';
 import { RequestSnackbar, useRequest } from '@/api/Request';
 import {
+    getRatingRanges,
     OpenClassical,
     OpenClassicalPlayer,
     OpenClassicalPlayerStatus,
@@ -137,9 +138,9 @@ const PlayersTab: React.FC<PlayersTabProps> = ({ openClassical, onUpdate }) => {
     const ratingRange = searchParams.get('ratingRange') || 'Open';
     const players = useMemo(
         () =>
-            Object.values(
-                openClassical.sections[`${region}_${ratingRange}`]?.players || {},
-            ).filter((player) => player.lichessUsername !== 'No Opponent'),
+            Object.values(openClassical.sections[`${region}_${ratingRange}`]?.players || {}).filter(
+                (player) => player.lichessUsername !== 'No Opponent',
+            ),
         [openClassical, region, ratingRange],
     );
 
@@ -163,8 +164,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({ openClassical, onUpdate }) => {
                 <Tooltip key='ban' title='Ban Player'>
                     <GridActionsCellItem
                         disabled={params.row.status === OpenClassicalPlayerStatus.Banned}
-                        color='error'
-                        icon={<Block />}
+                        icon={<Block color='error' />}
                         label='Ban Player'
                         onClick={() => {
                             setUpdatePlayer(params.row.lichessUsername);
@@ -220,11 +220,13 @@ const PlayersTab: React.FC<PlayersTabProps> = ({ openClassical, onUpdate }) => {
                         flexGrow: 1,
                     }}
                 >
-                    <MenuItem value='Open'>Open</MenuItem>
-                    <MenuItem value='U1800'>U1800</MenuItem>
+                    {getRatingRanges(openClassical).map((rating) => (
+                        <MenuItem key={rating} value={rating}>
+                            {rating}
+                        </MenuItem>
+                    ))}
                 </TextField>
             </Stack>
-
             <DataGridPro
                 getRowId={(player) => player.lichessUsername}
                 rows={players}
@@ -244,13 +246,11 @@ const PlayersTab: React.FC<PlayersTabProps> = ({ openClassical, onUpdate }) => {
                         ratingRange,
                     },
                 }}
+                showToolbar
             />
-
             <Dialog
                 open={Boolean(updatePlayer)}
-                onClose={
-                    updateRequest.isLoading() ? undefined : () => setUpdatePlayer('')
-                }
+                onClose={updateRequest.isLoading() ? undefined : () => setUpdatePlayer('')}
                 maxWidth='sm'
                 fullWidth
             >
@@ -271,15 +271,11 @@ const PlayersTab: React.FC<PlayersTabProps> = ({ openClassical, onUpdate }) => {
                     >
                         Cancel
                     </Button>
-                    <LoadingButton
-                        loading={updateRequest.isLoading()}
-                        onClick={onConfirmUpdate}
-                    >
+                    <LoadingButton loading={updateRequest.isLoading()} onClick={onConfirmUpdate}>
                         {updateType === 'ban' ? 'Ban' : 'Withdraw'} Player
                     </LoadingButton>
                 </DialogActions>
             </Dialog>
-
             <RequestSnackbar request={updateRequest} showSuccess />
         </Stack>
     );

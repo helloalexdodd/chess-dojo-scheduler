@@ -1,9 +1,9 @@
+import { metaLead } from '@/analytics/meta';
 import { Box, Container, Step, StepLabel, Stepper, Typography } from '@mui/material';
 import { useState } from 'react';
 import PricingPage from '../../app/(scoreboard)/prices/PricingPage';
 import { useRequiredAuth } from '../../auth/Auth';
 import { SubscriptionStatus, User, dojoCohorts } from '../../database/user';
-import DiscordForm from './DiscordForm';
 import ExtraRatingSystemsForm from './ExtraRatingSystemsForm';
 import PersonalInfoForm from './PersonalInfoForm';
 import PreferredRatingSystemForm from './PreferredRatingSystemForm';
@@ -38,11 +38,6 @@ const steps: StepProps[] = [
         form: ExtraRatingSystemsForm,
     },
     {
-        label: 'Discord',
-        optional: true,
-        form: DiscordForm,
-    },
-    {
         label: 'Referral Source',
         optional: false,
         form: ReferralSourceForm,
@@ -74,12 +69,17 @@ const ProfileCreatorPage = () => {
 
     const Form = steps[activeStep].form;
 
+    const onFreeTier = () => {
+        setShowPricingPage(false);
+        metaLead();
+    };
+
     if (
         showPricingPage &&
         user.subscriptionStatus !== SubscriptionStatus.Subscribed &&
         activeStep === 0
     ) {
-        return <PricingPage onFreeTier={() => setShowPricingPage(false)} />;
+        return <PricingPage onFreeTier={onFreeTier} />;
     }
 
     return (
@@ -90,9 +90,7 @@ const ProfileCreatorPage = () => {
                     <Step key={s.label}>
                         <StepLabel
                             optional={
-                                s.optional && (
-                                    <Typography variant='caption'>Optional</Typography>
-                                )
+                                s.optional && <Typography variant='caption'>Optional</Typography>
                             }
                         >
                             {s.label}

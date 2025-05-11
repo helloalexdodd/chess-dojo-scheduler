@@ -1,5 +1,6 @@
 'use client';
 
+import { DonateIcon } from '@/style/DonateIcon';
 import {
     AutoStories,
     ChevronRight,
@@ -10,8 +11,10 @@ import {
     ImportContacts,
     MenuBook,
     Menu as MenuIcon,
+    RocketLaunch,
     Sell,
     SignalCellularAlt,
+    Storefront,
     EmojiEvents as Tournaments,
 } from '@mui/icons-material';
 import LoginIcon from '@mui/icons-material/Login';
@@ -43,9 +46,7 @@ const UnauthenticatedMenu = () => {
 
 export default UnauthenticatedMenu;
 
-function unauthenticatedStartItems(
-    toggleExpansion: (item: string) => void,
-): NavbarItem[] {
+function unauthenticatedStartItems(toggleExpansion: (item: string) => void): NavbarItem[] {
     return [
         {
             name: 'Tournaments',
@@ -54,7 +55,7 @@ function unauthenticatedStartItems(
             children: [
                 {
                     name: 'DojoLiga',
-                    href: '/tournaments',
+                    href: '/tournaments/liga',
                 },
                 {
                     name: 'Open Classical',
@@ -96,16 +97,24 @@ function unauthenticatedStartItems(
             children: [
                 {
                     name: 'Courses',
+                    icon: <ImportContacts />,
                     href: '/courses',
                 },
                 {
                     name: 'Coaching',
+                    icon: <RocketLaunch />,
                     href: '/coaching',
                 },
                 {
                     name: 'Merch',
-                    onClick: () =>
-                        window.open('https://www.chessdojo.shop/shop', '_blank'),
+                    icon: <Storefront />,
+                    href: 'https://www.chessdojo.shop/shop',
+                    target: '_blank',
+                },
+                {
+                    name: 'Donate',
+                    href: '/donate',
+                    icon: <DonateIcon />,
                 },
             ],
         },
@@ -117,7 +126,7 @@ function unauthenticatedStartItems(
     ];
 }
 
-function useNavbarItems(handleClick: (func: () => void) => () => void) {
+function useNavbarItems(handleClose: () => void) {
     const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
 
     const showAll = useMediaQuery('(min-width:963px)');
@@ -151,7 +160,7 @@ function useNavbarItems(handleClick: (func: () => void) => () => void) {
                 key={item.name}
                 item={item}
                 openItems={openItems}
-                handleClick={handleClick}
+                handleClose={handleClose}
             />
         ));
 
@@ -172,14 +181,7 @@ export const LargeMenuUnauthenticated = () => {
         setAnchorEl(null);
     };
 
-    const handleClick = (func: () => void) => {
-        return () => {
-            func();
-            handleClose();
-        };
-    };
-
-    const { startItems, menuItems } = useNavbarItems(handleClick);
+    const { startItems, menuItems } = useNavbarItems(handleClose);
 
     return (
         <>
@@ -238,14 +240,7 @@ export const ExtraSmallMenuUnauthenticated = () => {
 
     const handleClose = () => {
         setAnchorEl(null);
-    };
-
-    const handleClick = (func: () => void) => {
-        return () => {
-            func();
-            handleClose();
-            setOpenItems({});
-        };
+        setOpenItems({});
     };
 
     return (
@@ -312,13 +307,10 @@ export const ExtraSmallMenuUnauthenticated = () => {
                                 {item.children.map((child) => (
                                     <MenuItem
                                         key={child.name}
-                                        onClick={
-                                            child.onClick
-                                                ? handleClick(child.onClick)
-                                                : undefined
-                                        }
+                                        onClick={handleClose}
                                         component={child.href ? 'a' : 'li'}
                                         href={child.href}
+                                        target={child.target}
                                         sx={{ pl: 3 }}
                                     >
                                         {child.icon ? (
@@ -328,9 +320,7 @@ export const ExtraSmallMenuUnauthenticated = () => {
                                                 <ChevronRight />
                                             </ListItemIcon>
                                         )}
-                                        <Typography textAlign='center'>
-                                            {child.name}
-                                        </Typography>
+                                        <Typography textAlign='center'>{child.name}</Typography>
                                     </MenuItem>
                                 ))}
                             </List>

@@ -2,23 +2,20 @@ import MultipleSelectChip from '@/components/ui/MultipleSelectChip';
 import { useLightMode } from '@/style/useLightMode';
 import { getCohortRangeInt } from '@jackstenglein/chess-dojo-common/src/database/cohort';
 import { Exam } from '@jackstenglein/chess-dojo-common/src/database/exam';
-import {
-    getExamMaxScore,
-    getRegression,
-} from '@jackstenglein/chess-dojo-common/src/exam/scores';
+import { getExamMaxScore, getRegression } from '@jackstenglein/chess-dojo-common/src/exam/scores';
 import { Speed } from '@mui/icons-material';
 import { CardContent, Stack, Typography } from '@mui/material';
 import {
+    ChartContainer,
+    ChartDataProvider,
     ChartsClipPath,
     ChartsGrid,
     ChartsLegend,
     ChartsTooltip,
-    ChartsVoronoiHandler,
     ChartsXAxis,
     ChartsYAxis,
     LinePlot,
     LineSeriesType,
-    ResponsiveChartContainer,
     ScatterPlot,
     ScatterSeriesType,
     ScatterValueType,
@@ -58,10 +55,7 @@ const ExamStatistics: React.FC<ExamStatisticsProps> = ({ exam }) => {
     const [legendMargin, setLegendMargin] = useState(100);
 
     const cohortToSeries = useMemo(() => {
-        const cohortToSeries: Record<
-            string,
-            ScatterSeriesType & { data: ScatterValueType[] }
-        > = {};
+        const cohortToSeries: Record<string, ScatterSeriesType & { data: ScatterValueType[] }> = {};
 
         Object.entries(exam.answers).forEach(([username, answer]) => {
             if (answer.rating <= 0 || username === user?.username) {
@@ -117,9 +111,7 @@ const ExamStatistics: React.FC<ExamStatisticsProps> = ({ exam }) => {
                 id: 'best-fit',
                 type: 'line',
                 label: '',
-                data: Array.from(Array(totalScore + 1)).map((_, i) =>
-                    regression.predict(i),
-                ),
+                data: Array.from(Array(totalScore + 1)).map((_, i) => regression.predict(i)),
                 color: isLight ? '#000' : '#fff',
             },
             {
@@ -181,11 +173,10 @@ const ExamStatistics: React.FC<ExamStatisticsProps> = ({ exam }) => {
                           },
                       ],
                       highlightScope: {
-                          highlighted: 'item',
-                          faded: 'global',
+                          highlight: 'item',
+                          fade: 'global',
                       },
-                      valueFormatter: (value) =>
-                          `Score: ${value?.x},\nRating: ${value?.y}`,
+                      valueFormatter: (value) => `Score: ${value?.x},\nRating: ${value?.y}`,
                       color: isLight ? '#000' : '#fff',
                   },
               ]
@@ -197,8 +188,7 @@ const ExamStatistics: React.FC<ExamStatisticsProps> = ({ exam }) => {
     }
 
     const avgScore =
-        series.reduce((sum, s) => sum + s.data.reduce((ds, d) => ds + d.x, 0), 0) /
-        userCount;
+        series.reduce((sum, s) => sum + s.data.reduce((ds, d) => ds + d.x, 0), 0) / userCount;
 
     let [minCohort, maxCohort] = getCohortRangeInt(exam.cohortRange);
     minCohort = Math.max(minCohort - 100, 0);
@@ -242,100 +232,92 @@ const ExamStatistics: React.FC<ExamStatisticsProps> = ({ exam }) => {
                 <Stack alignItems='center' mt={1} mb={1} spacing={0.5}>
                     <Stack direction='row' spacing={2} justifyContent='center'>
                         <Typography variant='body2'>
-                            <Typography
-                                variant='body2'
-                                component='span'
-                                color='text.secondary'
-                            >
+                            <Typography variant='body2' component='span' color='text.secondary'>
                                 Users:
                             </Typography>{' '}
                             {userCount}
                         </Typography>
                         <Typography variant='body2'>
-                            <Typography
-                                variant='body2'
-                                component='span'
-                                color='text.secondary'
-                            >
+                            <Typography variant='body2' component='span' color='text.secondary'>
                                 Avg Score:
                             </Typography>{' '}
                             {Math.round(10 * avgScore) / 10}
                         </Typography>
                     </Stack>
-                    <Typography
-                        variant='caption'
-                        color='text.secondary'
-                        textAlign='center'
-                    >
-                        Best fit is calculated as a linear regression over all users{' '}
-                        {minCohort}
+                    <Typography variant='caption' color='text.secondary' textAlign='center'>
+                        Best fit is calculated as a linear regression over all users {minCohort}
                         {maxCohort === Infinity ? '+' : `–${maxCohort}`}
                     </Typography>
                 </Stack>
 
-                <ResponsiveChartContainer
-                    disableAxisListener
-                    xAxis={[
-                        {
-                            label: 'Score',
-                            data: Array.from(Array(totalScore + 2)).map((_, i) => i),
-                            min: 0,
-                        },
-                    ]}
-                    yAxis={[
-                        {
-                            label: 'Normalized Rating',
-                            valueFormatter: (value) => `${value}`,
-                            min: 0,
-                        },
-                    ]}
-                    series={[...series, ...yourScoreSeries, ...lineSeries]}
-                    margin={{ left: 60, right: 8, top: legendMargin }}
-                    sx={{
-                        [`& .${axisClasses.left} .${axisClasses.label}`]: {
-                            transform: 'translateX(-20px)',
-                        },
-                        [`.${lineElementClasses.root}`]: {
-                            strokeWidth: 1,
-                        },
-                        '.MuiLineElement-series-best-fit': {
-                            strokeDasharray: '5 5',
-                        },
-
-                        [`& .${legendClasses.series}`]: {
-                            '&:last-of-type': {
-                                display: 'none',
-                            },
-                            [`:nth-last-child(2) .${legendClasses.mark}`]: {
-                                height: '3px',
-                                transform: 'translateY(3px)',
-                            },
-                        },
-                    }}
-                >
+                <ChartDataProvider>
                     <ChartsLegend
                         slotProps={{
                             legend: {
-                                itemMarkWidth: 10,
-                                itemMarkHeight: 10,
-                                labelStyle: { fontSize: 13 },
-                                padding: 0,
+                                sx: {
+                                    fontSize: 13,
+                                    padding: 0,
+                                    [`.${legendClasses.mark}`]: {
+                                        height: 15,
+                                        width: 15,
+                                    },
+                                },
                             },
                         }}
                     />
-                    <ChartsGrid vertical horizontal />
+                    <ChartContainer
+                        disableAxisListener
+                        xAxis={[
+                            {
+                                label: 'Score',
+                                data: Array.from(Array(totalScore + 2)).map((_, i) => i),
+                                min: 0,
+                            },
+                        ]}
+                        yAxis={[
+                            {
+                                label: 'Normalized Rating',
+                                valueFormatter: (value: number) => `${value}`,
+                                min: 0,
+                            },
+                        ]}
+                        series={[...series, ...yourScoreSeries, ...lineSeries]}
+                        margin={{ left: 60, right: 8, top: legendMargin }}
+                        sx={{
+                            [`& .${axisClasses.left} .${axisClasses.label}`]: {
+                                transform: 'translateX(-20px)',
+                            },
+                            [`.${lineElementClasses.root}`]: {
+                                strokeWidth: 1,
+                            },
+                            '.MuiLineElement-series-best-fit': {
+                                strokeDasharray: '5 5',
+                            },
 
-                    <ChartsYAxis />
-                    <ChartsXAxis />
+                            [`& .${legendClasses.series}`]: {
+                                '&:last-of-type': {
+                                    display: 'none',
+                                },
+                                [`:nth-last-child(2) .${legendClasses.mark}`]: {
+                                    height: '3px',
+                                    transform: 'translateY(3px)',
+                                },
+                            },
+                        }}
+                    >
+                        <ChartsGrid vertical horizontal />
 
-                    <g clipPath='url(#clip-path)'>
-                        <LinePlot />
-                    </g>
-                    <ScatterPlot />
-                    <ChartsVoronoiHandler />
-                    <ChartsTooltip trigger='item' />
-                    <ChartsClipPath id='clip-path' />
-                </ResponsiveChartContainer>
+                        <ChartsYAxis />
+                        <ChartsXAxis />
+
+                        <g clipPath='url(#clip-path)'>
+                            <LinePlot />
+                        </g>
+                        <ScatterPlot />
+                        <ChartsTooltip trigger='item' />
+                        <ChartsClipPath id='clip-path' />
+                    </ChartContainer>
+                </ChartDataProvider>
             </Stack>
         </CardContent>
     );

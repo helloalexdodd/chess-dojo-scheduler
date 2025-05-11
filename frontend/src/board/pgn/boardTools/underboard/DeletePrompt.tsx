@@ -59,9 +59,7 @@ function getDeleteFromStats(move: Move | null) {
         }
 
         for (const variation of move.variations) {
-            const { moves: vMoves, comments: vComments } = getDeleteFromStats(
-                variation[0],
-            );
+            const { moves: vMoves, comments: vComments } = getDeleteFromStats(variation[0]);
             moves += vMoves;
             comments += vComments;
         }
@@ -97,10 +95,7 @@ function getDeleteBeforeStats(
         }
 
         for (const variation of move.variations) {
-            const { moves: vMoves, comments: vComments } = getDeleteBeforeStats(
-                variation[0],
-                stop,
-            );
+            const { moves: vMoves, comments: vComments } = getDeleteBeforeStats(variation[0], stop);
             moves += vMoves;
             comments += vComments;
         }
@@ -156,7 +151,7 @@ export function DeletePrompt({ deleteAction, onClose }: DeletePromptProps) {
     );
 }
 
-export function useDeletePrompt(chess: Chess | undefined) {
+export function useDeletePrompt(chess: Chess | undefined, onCloseParent?: () => void) {
     const [warnBeforeDelete] = useLocalStorage<number>(
         WarnBeforeDelete.key,
         WarnBeforeDelete.default,
@@ -177,12 +172,16 @@ export function useDeletePrompt(chess: Chess | undefined) {
                 chess.delete(move);
             }
             reconcile();
+            onCloseParent?.();
         } else {
             setDeleteAction({ ...deleteStats, move, type });
         }
     };
 
-    const onClose = () => setDeleteAction(undefined);
+    const onClose = () => {
+        setDeleteAction(undefined);
+        onCloseParent?.();
+    };
 
     return { onDelete, deleteAction, onClose };
 }

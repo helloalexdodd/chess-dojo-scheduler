@@ -10,7 +10,7 @@ import {
     CardContent,
     CircularProgress,
     Dialog,
-    Grid2,
+    Grid,
     Stack,
     SvgIconProps,
     SvgIconTypeMap,
@@ -43,7 +43,7 @@ export const ImportWizard = ({ onSubmit, loading }: ImportWizardProps) => {
     };
 
     return (
-        <Grid2 container rowSpacing={2} columnSpacing={2}>
+        <Grid container rowSpacing={2} columnSpacing={2}>
             <ImportSourceCard
                 name='Starting Position'
                 description='Annotate a blank game'
@@ -94,28 +94,16 @@ export const ImportWizard = ({ onSubmit, loading }: ImportWizardProps) => {
 
             <Dialog open={!!dialog} onClose={onCloseDialog} fullWidth scroll='body'>
                 {dialog === 'online' && (
-                    <OnlineGameForm
-                        loading={loading}
-                        onSubmit={onSelect}
-                        onClose={onCloseDialog}
-                    />
+                    <OnlineGameForm loading={loading} onSubmit={onSelect} onClose={onCloseDialog} />
                 )}
                 {dialog === 'pgn' && (
-                    <PGNForm
-                        loading={loading}
-                        onSubmit={onSelect}
-                        onClose={onCloseDialog}
-                    />
+                    <PGNForm loading={loading} onSubmit={onSelect} onClose={onCloseDialog} />
                 )}
                 {dialog === 'position' && (
-                    <PositionForm
-                        loading={loading}
-                        onSubmit={onSelect}
-                        onClose={onCloseDialog}
-                    />
+                    <PositionForm loading={loading} onSubmit={onSelect} onClose={onCloseDialog} />
                 )}
             </Dialog>
-        </Grid2>
+        </Grid>
     );
 };
 
@@ -150,7 +138,7 @@ const ImportSourceCard = ({
 }: ImportSourceCardProps) => {
     const Icon = icon;
     return (
-        <Grid2
+        <Grid
             size={{
                 xs: 12,
                 sm: 6,
@@ -179,17 +167,13 @@ const ImportSourceCard = ({
                             <Typography variant='h5' mb={0.5}>
                                 {name}
                             </Typography>
-                            <Typography
-                                variant='subtitle1'
-                                color='text.secondary'
-                                lineHeight='1.3'
-                            >
+                            <Typography variant='subtitle1' color='text.secondary' lineHeight='1.3'>
                                 {description}
                             </Typography>
                         </Stack>
                     </CardContent>
                 </CardActionArea>
             </Card>
-        </Grid2>
+        </Grid>
     );
 };

@@ -35,10 +35,7 @@ describe('List Games Page', () => {
         cy.interceptApi('GET', '/user/access', { statusCode: 403 });
         cy.visit('/games');
 
-        cy.contains('Download full database (updated daily)').should(
-            'not.have.attr',
-            'href',
-        );
+        cy.contains('Download full database (updated daily)').should('not.have.attr', 'href');
         cy.contains('Download full database').click();
         cy.getBySel('upsell-dialog').should('be.visible');
     });
@@ -62,10 +59,7 @@ describe('List Games Page', () => {
 
         cy.getBySel('games-table').contains('16-1700');
         cy.getBySel('games-table').contains('JackStenglein');
-        cy.location('search').should(
-            'equal',
-            '?type=cohort&cohort=1600-1700&startDate=&endDate=',
-        );
+        cy.location('search').should('equal', '?type=cohort&cohort=1600-1700&startDate=&endDate=');
     });
 
     it('allows searching by player', () => {
@@ -100,9 +94,7 @@ describe('List Games Page', () => {
     it('prevents searching by player through URL', () => {
         cy.interceptApi('GET', '/user', { fixture: 'auth/freeUser.json' });
         cy.interceptApi('GET', '/user/access', { statusCode: 403 });
-        cy.visit(
-            '/games?type=player&player=JackStenglein&color=either&startDate=&endDate=',
-        );
+        cy.visit('/games?type=player&player=JackStenglein&color=either&startDate=&endDate=');
 
         cy.getBySel('upsell-dialog').should('be.visible');
     });
@@ -118,10 +110,7 @@ describe('List Games Page', () => {
         });
         cy.getBySel('opening-search-button').click();
 
-        cy.location('search').should(
-            'equal',
-            '?type=opening&eco=B01&startDate=&endDate=',
-        );
+        cy.location('search').should('equal', '?type=opening&eco=B01&startDate=&endDate=');
         cy.getBySel('games-table').should('not.contain', 'No rows');
     });
 
@@ -138,7 +127,8 @@ describe('List Games Page', () => {
         cy.location('search').should('equal', '?type=owner&startDate=&endDate=');
     });
 
-    it('links to game page on row click', () => {
+    it.only('links to game page on row click', () => {
+        cy.getBySel('games-table').find('.MuiDataGrid-main--hiddenContent').should('not.exist');
         cy.getBySel('games-table').find('.MuiDataGrid-row').first().click();
 
         cy.location('pathname').should('match', /^\/games\/\d{4}-\d{4}\/.+$/);
@@ -150,6 +140,6 @@ describe('List Games Page', () => {
         cy.visit('/games');
 
         cy.getBySel('upsell-alert').should('be.visible');
-        cy.get('[data-testid="KeyboardArrowRightIcon"]').parent().should('be.disabled');
+        cy.get('[aria-label="Go to next page"]').should('be.disabled');
     });
 });

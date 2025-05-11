@@ -1,8 +1,8 @@
 import { FontAwesomeSvgIcon } from '@/style/Icon';
+import { DiscordIcon } from '@/style/SocialMediaIcons';
 import { faPatreon, faSpotify, faTwitch } from '@fortawesome/free-brands-svg-icons';
 import { FacebookOutlined, Instagram, X, YouTube } from '@mui/icons-material';
 import { IconButton, Stack, Tooltip, useMediaQuery } from '@mui/material';
-import { DiscordIcon } from '../profile/info/DiscordChip';
 
 const icons = [
     <Tooltip key='twitch' title='Twitch'>
@@ -12,11 +12,7 @@ const icons = [
     </Tooltip>,
 
     <Tooltip key='youtube' title='YouTube'>
-        <IconButton
-            href='https://www.youtube.com/chessdojo'
-            target='_blank'
-            rel='noopener'
-        >
+        <IconButton href='https://www.youtube.com/chessdojo' target='_blank' rel='noopener'>
             <YouTube sx={{ color: 'white' }} />
         </IconButton>
     </Tooltip>,
@@ -44,21 +40,13 @@ const icons = [
     </Tooltip>,
 
     <Tooltip key='patreon' title='Patreon'>
-        <IconButton
-            href='https://www.patreon.com/ChessDojo'
-            target='_blank'
-            rel='noopener'
-        >
+        <IconButton href='https://www.patreon.com/ChessDojo' target='_blank' rel='noopener'>
             <FontAwesomeSvgIcon icon={faPatreon} sx={{ color: 'white' }} />
         </IconButton>
     </Tooltip>,
 
     <Tooltip key='instagram' title='Instagram'>
-        <IconButton
-            href='https://www.instagram.com/chessdojo/'
-            target='_blank'
-            rel='noopener'
-        >
+        <IconButton href='https://www.instagram.com/chessdojo/' target='_blank' rel='noopener'>
             <Instagram sx={{ color: 'white' }} />
         </IconButton>
     </Tooltip>,

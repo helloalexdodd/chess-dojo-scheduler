@@ -2,6 +2,7 @@ import boto3
 import csv
 import datetime
 from decimal import Decimal
+import json
 
 db = boto3.resource('dynamodb')
 table = db.Table('dev-requirements')
@@ -121,7 +122,6 @@ def main():
         'Middlegames + Strategy': [],
         'Endgame': [],
         'Opening': [],
-        'Non-Dojo': [],
     }
     updatedAt = datetime.datetime.utcnow().isoformat('T') + 'Z'
 
@@ -146,6 +146,7 @@ def main():
                 'category': row['Category'],
                 'name': row['Requirement Name'],
                 'shortName': row['Requirement Short Name'],
+                'dailyName': row['Daily Name'],
                 'description': row['Description'] if row['Description'] else '',
                 'freeDescription': row['Free Description'] if row['Free Description'] else '',
                 'counts': counts,
@@ -163,6 +164,7 @@ def main():
                 'expirationDays': int(row['Expiration Days']) if row['Expiration Days'] else -1,
                 'isFree': row['Free?'] == '1',
                 'blockers': getBlockers(row),
+                'atomic': row['Atomic'] == 'TRUE',
             }
 
             items.append(item)
@@ -176,9 +178,11 @@ def main():
         f'Got {len(categories["Middlegames + Strategy"])} Middlegames + Strategy requirements')
     print(f'Got {len(categories["Endgame"])} Endgame requirements')
     print(f'Got {len(categories["Opening"])} Opening requirements')
-    print(f'Got {len(categories["Non-Dojo"])} Non-Dojo requirements')
 
     print('Uploading items')
+
+    # with open('requirements.json', 'w') as out:
+    #     out.write(json.dumps(items))
 
     updated = 0
     try:

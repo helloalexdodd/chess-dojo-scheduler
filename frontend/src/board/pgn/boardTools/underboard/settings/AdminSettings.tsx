@@ -1,12 +1,13 @@
+import { useApi } from '@/api/Api';
+import { RequestSnackbar, useRequest } from '@/api/Request';
+import { useAuth } from '@/auth/Auth';
+import { toDojoDateString, toDojoTimeString } from '@/components/calendar/displayDate';
+import { Link } from '@/components/navigation/Link';
+import { ONE_WEEK_IN_MS } from '@/components/time/time';
+import { displayGameReviewType, Game } from '@/database/game';
+import Avatar from '@/profile/Avatar';
 import { LoadingButton } from '@mui/lab';
-import { Link, Stack, Typography } from '@mui/material';
-import { useApi } from '../../../../../api/Api';
-import { RequestSnackbar, useRequest } from '../../../../../api/Request';
-import { useAuth } from '../../../../../auth/Auth';
-import { toDojoDateString, toDojoTimeString } from '../../../../../calendar/displayDate';
-import { displayGameReviewType, Game } from '../../../../../database/game';
-import { ONE_WEEK } from '../../../../../games/review/ReviewQueuePage';
-import Avatar from '../../../../../profile/Avatar';
+import { Stack, Typography } from '@mui/material';
 
 interface AdminSettingsProps {
     game: Game;
@@ -29,13 +30,9 @@ const GameReviewDetails: React.FC<AdminSettingsProps> = ({ game, onSaveGame }) =
 
     const requestDate = new Date(game.reviewRequestedAt || '');
     const requestDateStr = toDojoDateString(requestDate, user?.timezoneOverride);
-    const requestTimeStr = toDojoTimeString(
-        requestDate,
-        user?.timezoneOverride,
-        user?.timeFormat,
-    );
+    const requestTimeStr = toDojoTimeString(requestDate, user?.timezoneOverride, user?.timeFormat);
     const reviewDeadline = toDojoDateString(
-        new Date(requestDate.getTime() + ONE_WEEK),
+        new Date(requestDate.getTime() + ONE_WEEK_IN_MS),
         user?.timezoneOverride,
     );
 
@@ -73,9 +70,7 @@ const GameReviewDetails: React.FC<AdminSettingsProps> = ({ game, onSaveGame }) =
                         </Typography>
                     )}
                     {review.type && (
-                        <Typography>
-                            Review Type: {displayGameReviewType(review.type)}
-                        </Typography>
+                        <Typography>Review Type: {displayGameReviewType(review.type)}</Typography>
                     )}
                 </Stack>
                 <RequestSnackbar request={request} />
@@ -103,17 +98,11 @@ const GameReviewDetails: React.FC<AdminSettingsProps> = ({ game, onSaveGame }) =
                     <Typography>
                         Review Requested: {requestDateStr} • {requestTimeStr}
                     </Typography>
-                    <Typography>
-                        Review Type: {displayGameReviewType(game.review.type)}
-                    </Typography>
+                    <Typography>Review Type: {displayGameReviewType(game.review.type)}</Typography>
                     <Typography>Estimated Review Date: by {reviewDeadline}</Typography>
                 </Stack>
             )}
-            <LoadingButton
-                loading={request.isLoading()}
-                variant='contained'
-                onClick={onClick}
-            >
+            <LoadingButton loading={request.isLoading()} variant='contained' onClick={onClick}>
                 Mark Reviewed
             </LoadingButton>
             <RequestSnackbar request={request} />

@@ -3,9 +3,12 @@ import { fetchAuthSession } from 'aws-amplify/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 const publicPaths = [
+    /^\/_next\/.*$/,
     /^\/static\/.*$/,
-    /^\/help$/,
+    /^\/donate$/,
+    /^\/help.*/,
     /^\/tournaments$/,
+    /^\/tournaments\/liga$/,
     /^\/tournaments\/open-classical$/,
     /^\/tournaments\/open-classical\/info$/,
     /^\/tournaments\/open-classical\/register$/,
@@ -20,6 +23,7 @@ const publicPaths = [
     /^\/prices$/,
     /^\/clubs$/,
     /^\/games\/.*\/.*$/,
+    /^\/profile\/.*\/postmortem\/.*$/,
 ];
 
 const unauthenticatedPaths = [
@@ -28,6 +32,10 @@ const unauthenticatedPaths = [
     /^\/signup$/,
     /^\/verify-email$/,
     /^\/forgot-password$/,
+];
+
+const authenticatedRedirects: [RegExp, string][] = [
+    [/^\/dojodigest\/unsubscribe$/, '/profile/edit#notifications-email'],
 ];
 
 const legacyRoutes = [
@@ -71,6 +79,14 @@ export async function middleware(request: NextRequest) {
             }
         },
     });
+
+    if (authenticated) {
+        for (const [path, redirect] of authenticatedRedirects) {
+            if (pathname.match(path)) {
+                return NextResponse.redirect(new URL(redirect, request.url));
+            }
+        }
+    }
 
     let unauthenticatedPath = false;
     for (const path of unauthenticatedPaths) {

@@ -1,14 +1,15 @@
 'use client';
 
 import { AuthStatus, useAuth } from '@/auth/Auth';
+import { Link } from '@/components/navigation/Link';
+import { useRouter } from '@/hooks/useRouter';
 import JoinToday from '@/landing/JoinToday';
 import Sensei from '@/landing/Sensei';
 import Testimonials from '@/landing/Testimonials';
 import WhatsIncluded from '@/landing/WhatsIncluded';
 import LoadingPage from '@/loading/LoadingPage';
-import { Box, Button, Container, Grid2, Stack, Typography } from '@mui/material';
+import { Box, Button, Container, Grid, Stack, Typography } from '@mui/material';
 import { Hub } from 'aws-amplify/utils';
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 const LandingPage = ({
@@ -47,33 +48,20 @@ const LandingPage = ({
                     mb: { xs: 4, md: 0 },
                 }}
             >
-                <Grid2 container rowSpacing={4} columnSpacing={2}>
-                    <Grid2
+                <Grid container rowSpacing={4} columnSpacing={2}>
+                    <Grid
                         justifyContent='center'
                         size={{
                             xs: 12,
                             md: 6,
                         }}
                     >
-                        <Stack
-                            height={1}
-                            justifyContent='center'
-                            alignItems='center'
-                            spacing={6}
-                        >
+                        <Stack height={1} justifyContent='center' alignItems='center' spacing={6}>
                             <Stack alignItems='center' spacing={2}>
-                                <Typography
-                                    variant='h2'
-                                    textAlign='center'
-                                    data-cy='title'
-                                >
+                                <Typography variant='h2' textAlign='center' data-cy='title'>
                                     ChessDojo
                                 </Typography>
-                                <Typography
-                                    variant='h5'
-                                    textAlign='center'
-                                    data-cy='subtitle'
-                                >
+                                <Typography variant='h5' textAlign='center' data-cy='subtitle'>
                                     The ChessDojo{' '}
                                     <Typography
                                         variant='h5'
@@ -82,14 +70,15 @@ const LandingPage = ({
                                     >
                                         Training Program
                                     </Typography>{' '}
-                                    offers structured training plans for all levels
-                                    0-2500, along with an active and supportive community
+                                    offers structured training plans for all levels 0-2500, along
+                                    with an active and supportive community
                                 </Typography>
                             </Stack>
 
                             <Stack direction='row' spacing={3}>
                                 <Button
                                     variant='contained'
+                                    component={Link}
                                     href='/signup'
                                     sx={{
                                         fontSize: '1rem',
@@ -103,6 +92,7 @@ const LandingPage = ({
                                 </Button>
                                 <Button
                                     variant='outlined'
+                                    component={Link}
                                     href={`/signin${searchParams?.redirectUri ? `?redirectUri=${searchParams.redirectUri.toString()}` : ''}`}
                                     sx={{
                                         fontSize: '1rem',
@@ -116,9 +106,9 @@ const LandingPage = ({
                                 </Button>
                             </Stack>
                         </Stack>
-                    </Grid2>
+                    </Grid>
 
-                    <Grid2
+                    <Grid
                         size={{
                             xs: 12,
                             md: 6,
@@ -135,8 +125,8 @@ const LandingPage = ({
                                 allowFullScreen
                             />
                         </Stack>
-                    </Grid2>
-                </Grid2>
+                    </Grid>
+                </Grid>
             </Box>
             <WhatsIncluded />
             <Sensei />

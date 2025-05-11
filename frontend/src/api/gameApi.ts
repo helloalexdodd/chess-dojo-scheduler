@@ -1,18 +1,15 @@
 import {
     CreateGameRequest,
+    DeleteGamesRequest,
+    DeleteGamesResponse,
     GameHeader,
     UpdateGameRequest,
 } from '@jackstenglein/chess-dojo-common/src/database/game';
+import { PgnMergeRequest } from '@jackstenglein/chess-dojo-common/src/pgn/merge';
 import axios, { AxiosResponse } from 'axios';
 import { DateTime } from 'luxon';
 import { getConfig } from '../config';
-import {
-    Game,
-    GameInfo,
-    GameReviewType,
-    PositionComment,
-    isGameResult,
-} from '../database/game';
+import { Game, GameInfo, GameReviewType, PositionComment, isGameResult } from '../database/game';
 
 const BASE_URL = getConfig().api.baseUrl;
 
@@ -22,9 +19,7 @@ export interface GameApiContextType {
      * @param req The CreateGameRequest.
      * @returns The newly created Game.
      */
-    createGame: (
-        req: CreateGameRequest,
-    ) => Promise<AxiosResponse<Game | EditGameResponse>>;
+    createGame: (req: CreateGameRequest) => Promise<AxiosResponse<Game | EditGameResponse>>;
 
     /**
      * getGame returns the requested game.
@@ -41,11 +36,7 @@ export interface GameApiContextType {
      * @param featured Whether the game is featured or not.
      * @returns An AxiosResponse containing the updated game.
      */
-    featureGame: (
-        cohort: string,
-        id: string,
-        featured: string,
-    ) => Promise<AxiosResponse<Game>>;
+    featureGame: (cohort: string, id: string, featured: string) => Promise<AxiosResponse<Game>>;
 
     /**
      * updateGame overwrites the PGN data of the provided game.
@@ -62,13 +53,12 @@ export interface GameApiContextType {
     ) => Promise<AxiosResponse<Game>>;
 
     /**
-     * deleteGame removes the specified game from the database. The caller
-     * must be the owner of the game.
-     * @param cohort The cohort the game is in.
-     * @param id The id of the game.
-     * @returns The delete Game.
+     * Deletes the specified games from the database. The caller
+     * must be the owner of the games.
+     * @param request The request to delete the games.
+     * @returns The keys of the successfully deleted games.
      */
-    deleteGame: (cohort: string, id: string) => Promise<AxiosResponse<Game>>;
+    deleteGames: (request: DeleteGamesRequest) => Promise<AxiosResponse<DeleteGamesResponse>>;
 
     /**
      * listGamesByCohort returns a list of GameInfo objects corresponding to the provided cohort,
@@ -163,7 +153,7 @@ export interface GameApiContextType {
         id: string,
         comment: PositionComment,
         existingComments: boolean,
-    ) => Promise<AxiosResponse<Game>>;
+    ) => Promise<AxiosResponse<{ game: Game; comment: PositionComment }>>;
 
     /**
      * Updates a comment on a game. The full updated game is returned.
@@ -199,6 +189,13 @@ export interface GameApiContextType {
      * @returns An AxiosResponse containing the updated game.
      */
     markReviewed: (cohort: string, id: string) => Promise<AxiosResponse<Game>>;
+
+    /**
+     * Merges a PGN into an existing game.
+     * @param request The request to merge the PGN.
+     * @returns The cohort and id of the updated game.
+     */
+    mergePgn: (request: PgnMergeRequest) => Promise<AxiosResponse<Pick<Game, 'cohort' | 'id'>>>;
 }
 
 export interface EditGameResponse {
@@ -245,12 +242,7 @@ export function getGame(cohort: string, id: string) {
  * @param featured Whether the game is featured or not.
  * @returns An AxiosResponse containing the updated game.
  */
-export function featureGame(
-    idToken: string,
-    cohort: string,
-    id: string,
-    featured: string,
-) {
+export function featureGame(idToken: string, cohort: string, id: string, featured: string) {
     cohort = encodeURIComponent(cohort);
     id = btoa(id); // Base64 encode id because API Gateway can't handle ? in the id
 
@@ -290,18 +282,14 @@ export function updateGame(
 }
 
 /**
- * deleteGame removes the specified game from the database. The caller
- * must be the owner of the game.
+ * Deletes the specified games from the database. The caller
+ * must be the owner of the games.
  * @param idToken The id token of the current signed-in user.
- * @param cohort The cohort the game is in.
- * @param id The id of the game.
- * @returns The delete Game.
+ * @param request The request to delete the games.
+ * @returns The keys of the successfully deleted games.
  */
-export function deleteGame(idToken: string, cohort: string, id: string) {
-    cohort = encodeURIComponent(cohort);
-    id = btoa(id); // Base64 encode id because API Gateway can't handle ? in the id
-
-    return axios.delete<Game>(BASE_URL + `/game/${cohort}/${id}`, {
+export function deleteGames(idToken: string, request: DeleteGamesRequest) {
+    return axios.post<DeleteGamesResponse>(BASE_URL + `/game/delete`, request, {
         headers: { Authorization: 'Bearer ' + idToken },
     });
 }
@@ -473,12 +461,16 @@ export function createComment(
     cohort = encodeURIComponent(cohort);
     id = btoa(id); // Base64 encode id because API Gateway can't handle ? in the id
 
-    return axios.post<Game>(BASE_URL + `/game/${cohort}/${id}`, comment, {
-        params: { existingComments },
-        headers: {
-            Authorization: 'Bearer ' + idToken,
+    return axios.post<{ game: Game; comment: PositionComment }>(
+        BASE_URL + `/game/v2/${cohort}/${id}`,
+        comment,
+        {
+            params: { existingComments },
+            headers: {
+                Authorization: 'Bearer ' + idToken,
+            },
         },
-    });
+    );
 }
 
 export interface UpdateCommentRequest {
@@ -497,6 +489,9 @@ export interface UpdateCommentRequest {
     /** The new text content of the comment, which may contain mention markup. */
     content: string;
 
+    /** The new suggested variation of the comment. */
+    suggestedVariation: string;
+
     /** A comma-separated list of the parent comment ids. Empty for a top-level comment. */
     parentIds: string;
 }
@@ -513,7 +508,7 @@ export function updateComment(idToken: string, update: UpdateCommentRequest) {
     });
 }
 
-export type DeleteCommentRequest = Omit<UpdateCommentRequest, 'content'>;
+export type DeleteCommentRequest = Omit<UpdateCommentRequest, 'content' | 'suggestedVariation'>;
 
 /**
  * Deletes a comment on a game. The full updated game is returned.
@@ -574,6 +569,18 @@ export function markReviewed(idToken: string, cohort: string, id: string) {
         { cohort, id, reviewed: true },
         { headers: { Authorization: `Bearer ${idToken}` } },
     );
+}
+
+/**
+ * Sends an API request to merge a PGN into an existing game.
+ * @param idToken The id token of the current signed-in user.
+ * @param request The request to merge the PGN.
+ * @returns An AxiosResponse containing the cohort and id of the updated game.
+ */
+export function mergePgn(idToken: string, request: PgnMergeRequest) {
+    return axios.post<Pick<Game, 'cohort' | 'id'>>(`${BASE_URL}/game/merge`, request, {
+        headers: { Authorization: `Bearer ${idToken}` },
+    });
 }
 
 /**
@@ -674,6 +681,24 @@ export const isChesscomGameURL = (url: string) =>
         pathParts: [/^game$/, /^(live|daily)$/, matchChesscomId],
     });
 
+export function isChesscomEventsUrl(url: string) {
+    let urlObj: URL | null = null;
+    try {
+        urlObj = new URL(url.trim());
+    } catch (error) {
+        console.log(error);
+        return false;
+    }
+
+    if (urlObj.hostname !== 'www.chess.com') {
+        console.log('Hostname: ', urlObj.hostname);
+        return false;
+    }
+
+    const parts = urlObj.pathname.split('/').filter((part) => part);
+    return parts.length >= 2 && parts[0] === 'events';
+}
+
 /**
  * Returns true if the URL is a Chess.com analysis URL.
  * Ex: https://www.chess.com/analysis/game/live/108036079387?tab=review
@@ -724,7 +749,7 @@ export function stripTagValue(header?: string | null): string {
  * @param game The game to test.
  * @returns True if the game has missing or invalid data required to publish.
  */
-export function isMissingData(game: Game) {
+export function isMissingData(game: GameInfo) {
     const h = game.headers;
     return (
         !isGameResult(h.Result) ||
@@ -767,4 +792,13 @@ export function toPgnDate(date?: DateTime | null): string | null {
     pgnDate = pgnDate.replaceAll('-', '.');
 
     return pgnDate;
+}
+
+/**
+ * Converts a DateTime to a PGN tag string, using the date's local
+ * timezone.
+ * @param date The DateTime object to convert.
+ */
+export function toLocalPgnDate(date?: DateTime | null): string | undefined {
+    return date?.toISODate()?.replaceAll('-', '.');
 }

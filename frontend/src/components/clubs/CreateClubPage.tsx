@@ -3,13 +3,14 @@
 import { useApi } from '@/api/Api';
 import { RequestSnackbar, useRequest } from '@/api/Request';
 import { useCache } from '@/api/cache/Cache';
-import { ClubDetails } from '@/database/club';
-import LoadingPage from '@/loading/LoadingPage';
-import { ClubAvatar } from '@/profile/Avatar';
 import {
     MAX_PROFILE_PICTURE_SIZE_MB,
     encodeFileToBase64,
-} from '@/profile/editor/ProfileEditorPage';
+} from '@/app/(scoreboard)/profile/edit/ProfileEditorPage';
+import { ClubDetails } from '@/database/club';
+import { useRouter } from '@/hooks/useRouter';
+import LoadingPage from '@/loading/LoadingPage';
+import { ClubAvatar } from '@/profile/Avatar';
 import { Delete, Upload } from '@mui/icons-material';
 import { LoadingButton } from '@mui/lab';
 import {
@@ -18,13 +19,12 @@ import {
     Container,
     FormControlLabel,
     FormLabel,
-    Grid2,
+    Grid,
     Stack,
     TextField,
     Typography,
 } from '@mui/material';
 import { AxiosResponse } from 'axios';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export const CreateClubPage = ({ id }: { id: string }) => {
@@ -171,11 +171,7 @@ export const CreateClubPage = ({ id }: { id: string }) => {
                     <Stack direction='row' alignItems='center' spacing={3}>
                         <ClubAvatar id={id} name={name} size={150} url={logoUrl} />
                         <Stack spacing={2} alignItems='start'>
-                            <Button
-                                component='label'
-                                variant='outlined'
-                                startIcon={<Upload />}
-                            >
+                            <Button component='label' variant='outlined' startIcon={<Upload />}>
                                 Upload Photo
                                 <input
                                     type='file'
@@ -212,10 +208,7 @@ export const CreateClubPage = ({ id }: { id: string }) => {
                         minRows={3}
                         value={shortDescription}
                         onChange={(e) => setShortDescription(e.target.value)}
-                        error={
-                            Boolean(errors.shortDescription) ||
-                            shortDescription.length > 300
-                        }
+                        error={Boolean(errors.shortDescription) || shortDescription.length > 300}
                         helperText={
                             errors.shortDescription ||
                             `${shortDescription.length}/300 characters. Displayed on the club list page.`
@@ -244,8 +237,8 @@ export const CreateClubPage = ({ id }: { id: string }) => {
                     onChange={(e) => setExternalUrl(e.target.value)}
                 />
 
-                <Grid2 container columnSpacing={2} rowSpacing={3}>
-                    <Grid2
+                <Grid container columnSpacing={2} rowSpacing={3}>
+                    <Grid
                         size={{
                             sm: 4,
                         }}
@@ -256,8 +249,8 @@ export const CreateClubPage = ({ id }: { id: string }) => {
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
                         />
-                    </Grid2>
-                    <Grid2
+                    </Grid>
+                    <Grid
                         size={{
                             sm: 4,
                         }}
@@ -268,8 +261,8 @@ export const CreateClubPage = ({ id }: { id: string }) => {
                             value={state}
                             onChange={(e) => setState(e.target.value)}
                         />
-                    </Grid2>
-                    <Grid2
+                    </Grid>
+                    <Grid
                         size={{
                             sm: 4,
                         }}
@@ -280,8 +273,8 @@ export const CreateClubPage = ({ id }: { id: string }) => {
                             value={country}
                             onChange={(e) => setCountry(e.target.value)}
                         />
-                    </Grid2>
-                </Grid2>
+                    </Grid>
+                </Grid>
 
                 <Stack spacing={1}>
                     <FormControlLabel
